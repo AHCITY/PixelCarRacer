@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pixel Drag Racer - Evo 2.0</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            color: white;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #111;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated; 
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Controls */
+        .controls-overlay {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            pointer-events: auto;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-sizing: border-box;
+            opacity: 0.9;
+        }
+
+        @media (min-width: 800px) {
+            .controls-overlay { opacity: 0.3; padding: 0 100px; bottom: 40px; }
+            .controls-overlay:hover { opacity: 0.8; transition: 0.3s; }
+        }
+
+        .pedal-group, .shifter-group {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+        }
+
+        .btn {
+            background: #222;
+            border: 4px solid #444;
+            color: #ddd;
+            border-radius: 8px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.05s;
+            box-shadow: 0 6px 0 #111;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .btn:active, .btn.active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #111;
+            filter: brightness(1.2);
+        }
+
+        .btn-pedal { width: 80px; height: 140px; }
+        .btn-shift { width: 80px; height: 80px; border-radius: 50%; }
+
+        .clutch { background: #2c3e50; border-color: #34495e; }
+        .brake { background: #5a2a2a; border-color: #8b3a3a; height: 100px; }
+        .gas { background: #242; border-color: #2ecc71; }
+        
+        .shift-up { border-color: #f1c40f; color: #f1c40f; }
+        .shift-down { border-color: #e74c3c; color: #e74c3c; }
+
+        /* HUD */
+        .hud {
+            padding: 30px;
+            width: 100%;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            text-shadow: 3px 3px 0 #000;
+            font-size: 16px;
+            z-index: 5;
+        }
+
+        /* Menus */
+        .menu-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 15, 0.98);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            padding-top: 40px;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        .hidden { display: none !important; }
+
+        h1 { 
+            color: #ffeb3b; 
+            text-shadow: 4px 4px 0 #b71c1c; 
+            margin-bottom: 10px; 
+            text-align: center; 
+            font-size: 40px;
+            line-height: 1.2;
+            letter-spacing: -2px;
+            transform: skew(-5deg);
+        }
+
+        h2 { color: #fff; margin-bottom: 20px; text-shadow: 2px 2px 0 #000; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 10px; width: 80%; text-align: center;}
+        
+        .menu-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+            margin-top: 140px; /* Space for car preview */
+            width: 250px;
+        }
+
+        .menu-btn {
+            padding: 18px 10px;
+            font-size: 14px;
+            width: 100%;
+            text-align: center;
+            background: #1565c0;
+            border: 2px solid #64b5f6;
+            color: white;
+            cursor: pointer;
+            box-shadow: 4px 4px 0 #000;
+            text-transform: uppercase;
+        }
+        .menu-btn:hover { background: #1e88e5; transform: translateX(-2px); }
+        .menu-btn:active { transform: translateX(2px); box-shadow: 0 0 0; }
+        .menu-btn.red { background: #c62828; border-color: #ef5350; }
+        .menu-btn.green { background: #2e7d32; border-color: #66bb6a; }
+        
+        .scroll-container {
+            max-height: 45vh;
+            overflow-y: auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+            scrollbar-width: thin;
+            scrollbar-color: #555 #222;
+        }
+        
+        .shop-item, .car-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 85%;
+            max-width: 600px;
+            background: #1e1e1e;
+            padding: 15px;
+            margin: 6px 0;
+            border: 1px solid #333;
+            box-sizing: border-box;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .shop-item:hover, .car-item:hover { background: #2a2a2a; border-color: #666; }
+
+        .shop-item { flex-direction: column; align-items: flex-start; }
+
+        .shop-item-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .shop-item-detail {
+            font-size: 9px;
+            color: #888;
+            margin-top: 8px;
+            text-align: left;
+            line-height: 1.4;
+        }
+        
+        .car-item.owned { border-left: 5px solid #4caf50; }
+        .car-item.selected { border: 2px solid #ffeb3b; background: #2c2c22; }
+
+        #notification {
+            position: absolute;
+            top: 25%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 28px;
+            color: #ffeb3b;
+            text-shadow: 4px 4px 0 #000;
+            opacity: 0;
+            transition: opacity 0.2s, top 0.2s;
+            pointer-events: none;
+            text-align: center;
+            z-index: 20;
+            white-space: nowrap;
+            font-style: italic;
+        }
+        
+        .llm-output-box {
+            max-width: 500px;
+            width: 85%;
+            margin-top: 15px;
+            background: #222;
+            padding: 15px;
+            font-size: 10px;
+            color: #4fc3f7;
+            border: 1px dashed #4fc3f7;
+            text-align: left;
+            font-family: monospace;
+            line-height: 1.5;
+            display: none;
+        }
+
+        /* Loading Spinner */
+        .typing::after { content: '...'; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: .2; } 20% { opacity: 1; } 100% { opacity: .2; } }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div id="hud" class="hud hidden">
+            <div id="race-stats">
+                <div style="color:#ffeb3b">ROUND: <span id="tournament-round">1</span></div>
+                <div style="color:#aaa; font-size: 10px; margin-top:5px">OPPONENT: <span id="opp-name">Loading...</span></div>
+            </div>
+            <div id="race-info" style="text-align: right;">
+                <div id="race-timer" style="color:#fff; font-size: 24px;">0.00</div>
+            </div>
+        </div>
+        
+        <div id="controls" class="controls-overlay hidden">
+            <div class="shifter-group">
+                <div class="btn btn-shift shift-down" id="btn-down">DOWN<br>(A)</div>
+                <div class="btn btn-shift shift-up" id="btn-up">UP<br>(D)</div>
+            </div>
+            
+            <div class="pedal-group">
+                <div class="btn btn-pedal clutch" id="btn-clutch">CLUTCH<br>(Space)</div>
+                <div class="btn btn-pedal brake" id="btn-brake">BRAKE<br>(S)</div>
+                <div class="btn btn-pedal gas" id="btn-gas">GAS<br>(W)</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-menu" class="menu-overlay">
+        <h1>PIXEL<br>DRAG LEGENDS</h1>
+        <div style="color:#4caf50; font-size: 14px; position:absolute; top: 15px; right: 20px; background:#000; padding:5px 10px; border:1px solid #333;">CASH: $<span id="menu-cash">0</span></div>
+        
+        <div class="menu-grid">
+            <div class="menu-btn" onclick="game.startRaceMode('quick')">QUICK RACE</div>
+            <div class="menu-btn red" onclick="game.startRaceMode('tournament')">TOURNAMENT</div>
+            <div class="menu-btn" onclick="game.openGarage()">MY GARAGE</div>
+            <div class="menu-btn" onclick="game.openDealership()">DEALERSHIP</div>
+            <div class="menu-btn green" onclick="game.openShop()">TUNE SHOP</div>
+        </div>
+        
+        <div style="margin-top:10px; font-size: 8px; color: #444;">
+            Use W/A/S/D + SPACE to Drive
+        </div>
+    </div>
+
+    <div id="garage-menu" class="menu-overlay hidden">
+        <h2>MY GARAGE</h2>
+        <div id="car-stats-display" class="scroll-container" style="height: 60vh;"></div>
+        <div class="menu-btn" style="margin-top: 10px; width: 200px;" onclick="game.returnToMenu()">BACK</div>
+    </div>
+
+    <div id="shop-menu" class="menu-overlay hidden">
+        <h2 style="color:#4caf50">PERFORMANCE SHOP</h2>
+        <div style="color:#ffeb3b; margin-bottom: 5px;">WALLET: $<span id="shop-cash">0</span></div>
+        <div class="scroll-container" id="shop-items"></div>
+        <div class="menu-btn" style="margin-top:10px; width: 200px;" onclick="game.returnToMenu()">BACK</div>
+    </div>
+
+    <div id="dealership-menu" class="menu-overlay hidden">
+        <h2 style="color:#f48fb1">SHOWROOM</h2>
+        <div style="color:#ffeb3b; margin-bottom: 5px;">WALLET: $<span id="dealer-cash">0</span></div>
+        <div class="scroll-container" id="dealer-items"></div>
+        
+        <div style="margin-top: 10px; width: 90%; display: flex; gap: 10px; justify-content: center;">
+            <div class="menu-btn" onclick="game.getCarReview()" style="font-size: 10px; width: 140px;">✨ AI Review</div>
+            <div class="menu-btn" onclick="game.returnToMenu()" style="width: 140px;">BACK</div>
+        </div>
+        
+        <div id="gemini-review-output" class="llm-output-box"></div>
+    </div>
+
+    <div id="results-menu" class="menu-overlay hidden">
+        <h2 id="result-title" style="font-size: 40px; margin-bottom: 10px; border:none;">WINNER</h2>
+        <div style="width: 300px; background: #222; padding: 20px; border: 4px solid #444; box-shadow: 0 10px 20px rgba(0,0,0,0.5);">
+            <div class="stat-row" style="display:flex; justify-content:space-between; margin:10px 0;">
+                <span style="color:#aaa">ET:</span> <span id="result-time" style="color:#fff">0.00s</span>
+            </div>
+            <div class="stat-row" style="display:flex; justify-content:space-between; margin:10px 0;">
+                <span style="color:#aaa">Reaction:</span> <span id="result-reaction" style="color:#fff">0.00s</span>
+            </div>
+            <div class="stat-row" style="display:flex; justify-content:space-between; margin:15px 0 0 0; border-top: 2px dashed #444; padding-top: 10px;">
+                <span style="color:#aaa">Prize:</span> <span id="result-prize" style="color:#4caf50; font-size: 20px;">$0</span>
+            </div>
+        </div>
+        <div id="gemini-report-output" class="llm-output-box"></div>
+        <div class="menu-btn green" onclick="game.getRaceReport()" style="margin-top: 20px; width: 280px; font-size: 10px;">✨ Generate Race Report</div>
+        <div class="menu-btn" onclick="game.returnToMenu()" style="margin-top: 10px; width: 280px;">CONTINUE</div>
+    </div>
+
+    <div id="notification">PERFECT SHIFT</div>
+</div>
+
+<script>
+/* =========================================
+   PARTICLE SYSTEM (Enhanced)
+   ========================================= */
+class Particle {
+    constructor(x, y, type) {
+        this.x = x; 
+        this.y = y;
+        this.type = type;
+        this.life = 1.0;
+        
+        if (type === 'smoke') {
+            this.vx = (Math.random() - 0.5) * 2;
+            this.vy = (Math.random() * -2) - 0.5;
+            this.color = `rgba(200, 200, 200,`;
+            this.size = Math.random() * 5 + 3;
+            this.decay = 0.02;
+        } else if (type === 'fire') {
+            this.vx = (Math.random() - 0.5) * 5;
+            this.vy = (Math.random() * -1) - 1;
+            this.color = `rgba(255, ${Math.floor(Math.random()*200)}, 0,`;
+            this.size = Math.random() * 4 + 2;
+            this.decay = 0.08;
+        }
+    }
+    update() {
+        this.x += this.vx; 
+        this.y += this.vy;
+        this.life -= this.decay;
+        this.size += 0.2;
+    }
+    draw(ctx, camX, roadY) {
+        const pxScreen = (this.x * 20) - camX + 50; // 20 is metersToPx
+        ctx.fillStyle = this.color + this.life + ')';
+        ctx.beginPath();
+        ctx.arc(pxScreen, roadY + 80 + this.y, this.size, 0, Math.PI*2);
+        ctx.fill();
+    }
+}
+
+/* =========================================
+   CAR PHYSICS & MODEL
+   ========================================= */
+class Car {
+    constructor(config) {
+        this.name = config.name || "Stock Racer";
+        
+        // Base Stats
+        this.baseHp = config.hp || 300;
+        this.baseWeight = config.weight || 1200;
+        this.baseGrip = config.grip || 1.0;
+        this.baseRedline = config.redline || 7000;
+        
+        this.color = config.color || '#d32f2f';
+        this.secondaryColor = config.secondaryColor || '#9a0007';
+        this.price = config.price || 0;
+        this.type = config.type || 'hatch'; // hatch, sedan, muscle, super, dragster
+        
+        // Transmission
+        this.baseGearRatios = config.gearRatios || [0, 3.2, 2.2, 1.6, 1.2, 1.0, 0.8]; 
+        this.gearRatios = [...this.baseGearRatios]; 
+        this.baseFinalDrive = 4.1; 
+
+        // State
+        this.upgrades = config.upgrades ? JSON.parse(JSON.stringify(config.upgrades)) : {
+            engine: 1, injector: 1, chassis: 1, shortGears: 1,
+            slicks: false, aero: false, parachute: false, swapped: false, performanceGearbox: false
+        };
+        
+        // Dynamic Stats
+        this.hp = this.baseHp;
+        this.weight = this.baseWeight;
+        this.grip = this.baseGrip;
+        this.redline = this.baseRedline;
+        this.airResFactor = 1.0;
+        this.parachuteBrake = 1.0;
+        this.finalDrive = this.baseFinalDrive;
+
+        this.applyUpgrades();
+
+        // Physics Realtime
+        this.x = 0;
+        this.speed = 0; // m/s
+        this.rpm = 1000;
+        this.gear = 0; 
+        this.idleRpm = 1000;
+        
+        this.wheelRadius = 0.32;
+        this.gas = 0;
+        this.brake = 0;
+        this.clutch = 0;
+        this.reactionTime = 0.5;
+        
+        // Visuals
+        this.shakeX = 0;
+        this.shakeY = 0;
+        this.squat = 0;
+    }
+
+    applyUpgrades() {
+        this.hp = this.baseHp;
+        this.weight = this.baseWeight;
+        this.grip = this.baseGrip;
+        this.redline = this.baseRedline;
+        this.airResFactor = 1.0;
+        this.parachuteBrake = 1.0;
+        this.finalDrive = this.baseFinalDrive;
+        this.gearRatios = [...this.baseGearRatios];
+
+        // Tiered
+        this.hp += this.baseHp * 0.15 * (this.upgrades.engine - 1);
+        this.redline += 400 * (this.upgrades.engine - 1);
+        this.hp += this.baseHp * 0.08 * (this.upgrades.injector - 1);
+        this.weight -= 40 * (this.upgrades.chassis - 1);
+        this.finalDrive += 0.3 * (this.upgrades.shortGears - 1);
+
+        // One-time
+        if (this.upgrades.performanceGearbox) {
+             this.gearRatios = [0, 3.5, 2.4, 1.8, 1.4, 1.1, 0.9, 0.75]; // 7 speed close ratio
+        }
+        if (this.upgrades.slicks) this.grip += 0.8;
+        if (this.upgrades.aero) this.airResFactor = 0.85;
+        if (this.upgrades.parachute) this.parachuteBrake = 1.5;
+    }
+
+    update(dt) {
+        // Torque Curve Simulation
+        const peakTorqueRpm = this.redline * 0.65;
+        const maxTorque = (this.hp * 5252) / peakTorqueRpm; // lb-ft conversion ish
+        
+        // Rev Limiter
+        if (this.rpm > this.redline + 200) {
+            this.rpm = this.redline - 100; // Bounce
+            game.createBackfire(this);
+        }
+
+        let currentTorque = 0;
+        const r = this.rpm / this.redline;
+        let efficiency = 0;
+        if (r < 0.2) efficiency = 0.6; // Low end sluggishness
+        else efficiency = 1.0 - 1.5 * Math.pow(r - 0.65, 2); // Curve centered at 0.65
+        
+        currentTorque = maxTorque * Math.max(0.3, efficiency);
+
+        const engineTorque = currentTorque * this.gas;
+        const gearRatio = this.gearRatios[this.gear] || 0;
+        const totalRatio = gearRatio * this.finalDrive;
+        
+        const airRes = 0.5 * 1.225 * 0.35 * 2.2 * this.airResFactor * this.speed * this.speed;
+        const rollRes = this.weight * 9.81 * 0.015;
+        
+        // Visual Squat
+        const targetSquat = (this.gas > 0 && this.gear > 0 && this.rpm < this.redline) ? -3 : 0;
+        this.squat += (targetSquat - this.squat) * 0.1;
+
+        if (this.clutch > 0.5 || this.gear === 0) {
+            // Neutral/Clutch In
+            const flywheelMass = 0.3; 
+            const internalFriction = this.rpm * 0.05;
+            const rpmDelta = (engineTorque - internalFriction) / flywheelMass * dt;
+            
+            if (this.gas === 0) this.rpm -= 4000 * dt; 
+            else this.rpm += rpmDelta * 5; // Revs fast in neutral
+
+            const brakeEffect = this.brake * 15000 * this.parachuteBrake;
+            const decel = (airRes + rollRes + brakeEffect) / this.weight;
+            this.speed -= decel * dt;
+        } else {
+            // In Gear
+            const wheelTorque = engineTorque * totalRatio;
+            
+            // Wheel Spin Logic
+            const maxTraction = this.weight * 9.81 * this.grip * 0.7; // Traction limit
+            const wheelForce = wheelTorque / this.wheelRadius;
+            
+            let effectiveForce = wheelForce;
+            if (wheelForce > maxTraction) {
+                // Burnout / Spin
+                effectiveForce = maxTraction * 0.8; // Lose efficiency when spinning
+                this.rpm += 2000 * dt; // Revs spike
+                if(this.speed < 10) game.createSmoke(this, 3); // More smoke on launch
+            }
+
+            const brakeForce = this.brake * 12000 * this.parachuteBrake;
+            const netForce = effectiveForce - airRes - rollRes - brakeForce;
+            
+            const accel = netForce / this.weight;
+            this.speed += accel * dt;
+
+            // Engine braking / Matching road speed
+            const wheelRadS = this.speed / this.wheelRadius;
+            const targetRpm = (wheelRadS * totalRatio * 60) / (2 * Math.PI);
+            
+            if (wheelForce <= maxTraction) {
+                // Locked connection
+                this.rpm = (this.rpm * 0.8) + (targetRpm * 0.2);
+            }
+            
+            if (this.rpm < this.idleRpm) {
+                 this.rpm = this.idleRpm;
+                 if (this.speed < 1 && this.gas === 0) this.speed = 0;
+            }
+        }
+
+        if (this.speed < 0) this.speed = 0;
+        if (this.rpm < this.idleRpm) this.rpm = this.idleRpm;
+
+        this.x += this.speed * dt;
+
+        // Visual Shake
+        if (this.speed > 50) {
+            this.shakeX = (Math.random()-0.5) * (this.speed/50);
+            this.shakeY = (Math.random()-0.5) * (this.speed/50);
+        } else {
+            this.shakeX = 0; this.shakeY = 0;
+        }
+    }
+
+    shiftUp() {
+        if (this.gear < this.gearRatios.length - 1) {
+            this.gear++;
+            game.showNotification(`GEAR ${this.gear}`);
+            game.createBackfire(this);
+            game.screenShake = 5;
+        }
+    }
+    
+    shiftDown() {
+        if (this.gear > 0) {
+            this.gear--;
+            game.showNotification(`GEAR ${this.gear}`);
+        }
+    }
+}
+
+/* =========================================
+   GAME ENGINE
+   ========================================= */
+const game = {
+    canvas: document.getElementById('gameCanvas'),
+    ctx: null,
+    
+    // State
+    state: 'MENU',
+    menuState: 'MAIN',
+    cash: 2500,
+    ownedCars: [],
+    selectedCarIndex: 0,
+    
+    // Race State
+    raceDistance: 402, 
+    lights: 0,
+    lightTimer: 0,
+    raceStartTime: 0,
+    finished: false,
+    raceMode: 'quick',
+    tournamentRound: 1,
+    screenShake: 0,
+
+    playerCar: null,
+    opponentCar: null,
+    particles: [],
+
+    // Assets
+    carDefs: [
+        { name: "Civic '99", hp: 160, weight: 1100, grip: 1.0, redline: 8200, price: 0, color: '#fdd835', secondaryColor:'#333', type:'hatch', gearRatios: [0, 3.8, 2.4, 1.7, 1.3, 1.0] },
+        { name: "S14 Drift", hp: 280, weight: 1250, grip: 1.1, redline: 7500, price: 8000, color: '#9c27b0', secondaryColor:'#4a148c', type:'sedan', gearRatios: [0, 3.5, 2.2, 1.6, 1.2, 1.0] },
+        { name: "Mustang GT", hp: 420, weight: 1650, grip: 1.0, redline: 6500, price: 15000, color: '#b71c1c', secondaryColor:'#fff', type:'muscle', gearRatios: [0, 3.3, 2.0, 1.4, 1.1, 0.9] },
+        { name: "R34 GTR", hp: 550, weight: 1500, grip: 1.5, redline: 8500, price: 35000, color: '#0288d1', secondaryColor:'#01579b', type:'sedan', gearRatios: [0, 3.8, 2.5, 1.9, 1.5, 1.2, 0.9] },
+        { name: "Supra Mk4", hp: 600, weight: 1550, grip: 1.3, redline: 7800, price: 42000, color: '#e65100', secondaryColor:'#ff9800', type:'super', gearRatios: [0, 3.2, 2.1, 1.5, 1.1, 0.9, 0.7] },
+        { name: "Viper ACR", hp: 750, weight: 1480, grip: 1.6, redline: 6200, price: 65000, color: '#1b5e20', secondaryColor:'#000', type:'super', gearRatios: [0, 2.9, 1.9, 1.4, 1.1, 0.9, 0.7] },
+        { name: "Lambo Huracan", hp: 850, weight: 1400, grip: 1.8, redline: 9000, price: 120000, color: '#76ff03', secondaryColor:'#33691e', type:'super', gearRatios: [0, 3.5, 2.5, 1.9, 1.5, 1.2, 1.0, 0.8] },
+        { name: "Funny Car", hp: 2500, weight: 900, grip: 2.5, redline: 9500, price: 500000, color: '#311b92', secondaryColor:'#d50000', type:'dragster', gearRatios: [0, 4.0, 3.0, 2.2, 1.8, 1.5] }
+    ],
+
+    init() {
+        this.ctx = this.canvas.getContext('2d');
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        
+        // Start with Civic
+        const starter = new Car(JSON.parse(JSON.stringify(this.carDefs[0])));
+        this.ownedCars.push(starter);
+        this.playerCar = starter;
+        
+        this.setupInput();
+        this.updateMenuUI();
+        this.loop();
+    },
+
+    resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.ctx.imageSmoothingEnabled = false;
+    },
+
+    createSmoke(car, amount=1) {
+        for(let i=0; i<amount; i++)
+            this.particles.push(new Particle(car.x - 1, 0.5, 'smoke')); 
+    },
+
+    createBackfire(car) {
+        this.particles.push(new Particle(car.x - 2, 0.5, 'fire'));
+    },
+
+    // --- MOCK AI FUNCTIONS (Replaces missing API) ---
+    getCarReview() {
+        const out = document.getElementById('gemini-review-output');
+        const car = this.previewCar || this.playerCar;
+        out.style.display = 'block';
+        out.innerHTML = `<span class="typing">AI Mechanic is inspecting ${car.name}</span>`;
+        
+        // Mock response generation based on stats
+        setTimeout(() => {
+            let verdict = "";
+            if (car.hp < 200) verdict = "It's a grocery getter, but great for learning shift points. Very reliable.";
+            else if (car.hp < 500) verdict = "Solid street performance. Good torque, but watch the wheel spin in 1st gear.";
+            else if (car.hp < 1000) verdict = "Serious machine. You'll need slick tires to handle this power.";
+            else verdict = "Absolute monster. Not street legal. Prepare for neck injuries.";
+            
+            const txt = `<strong>AI ANALYSIS REPORT:</strong><br><br>
+            • <strong>Power:</strong> ${car.hp} HP (Stage ${car.upgrades.engine})<br>
+            • <strong>Weight:</strong> ${car.weight} KG<br>
+            • <strong>Drag Coeff:</strong> ${car.airResFactor.toFixed(2)}<br><br>
+            <strong>Mechanic's Verdict:</strong> ${verdict}`;
+            
+            out.innerHTML = txt;
+        }, 1500);
+    },
+
+    getRaceReport() {
+        const out = document.getElementById('gemini-report-output');
+        out.style.display = 'block';
+        out.innerHTML = `<span class="typing">Analyzing Telemetry Data</span>`;
+        
+        setTimeout(() => {
+            const res = this.raceResults;
+            let advice = "";
+            if (res.playerReaction > 0.5) advice = "Your reaction time was slow. Try to anticipate the green light.";
+            else if (res.playerTime > 15) advice = "You're shifting too early. Let the RPM build up closer to redline.";
+            else if (!res.won) advice = "You need more horsepower or shorter gear ratios to beat this opponent.";
+            else advice = "Perfect run. Your shift points were spot on.";
+
+            const txt = `<strong>RACE DEBRIEF:</strong><br><br>
+            • <strong>Reaction:</strong> ${res.playerReaction.toFixed(3)}s<br>
+            • <strong>ET:</strong> ${res.playerTime.toFixed(3)}s<br>
+            • <strong>Outcome:</strong> ${res.won ? "VICTORY" : "LOSS"}<br><br>
+            <strong>Coach's Tip:</strong> ${advice}`;
+            
+            out.innerHTML = txt;
+        }, 1500);
+    },
+
+    setupInput() {
+        const handle = (action, val) => {
+            if (this.state === 'RACE') {
+                if (action === 'gas') {
+                    this.playerCar.gas = val;
+                    const el = document.getElementById('btn-gas');
+                    val ? el.classList.add('active') : el.classList.remove('active');
+                }
+                if (action === 'brake') {
+                    this.playerCar.brake = val;
+                    const el = document.getElementById('btn-brake');
+                    val ? el.classList.add('active') : el.classList.remove('active');
+                }
+                if (action === 'clutch') {
+                    this.playerCar.clutch = val;
+                    const el = document.getElementById('btn-clutch');
+                    val ? el.classList.add('active') : el.classList.remove('active');
+                }
+            }
+        };
+
+        window.addEventListener('keydown', e => {
+            if(e.repeat) return;
+            const k = e.key.toLowerCase();
+            if (k === 'w' || k === 'arrowup') handle('gas', 1);
+            if (k === 's' || k === 'arrowdown') handle('brake', 1);
+            if (k === ' ') handle('clutch', 1);
+            if (k === 'd' || k === 'arrowright') {
+                if(this.state==='RACE') {
+                    this.playerCar.shiftUp();
+                    document.getElementById('btn-up').classList.add('active');
+                    setTimeout(()=>document.getElementById('btn-up').classList.remove('active'), 100);
+                }
+            }
+            if (k === 'a' || k === 'arrowleft') {
+                if(this.state==='RACE') {
+                    this.playerCar.shiftDown();
+                    document.getElementById('btn-down').classList.add('active');
+                    setTimeout(()=>document.getElementById('btn-down').classList.remove('active'), 100);
+                }
+            }
+        });
+
+        window.addEventListener('keyup', e => {
+            const k = e.key.toLowerCase();
+            if (k === 'w' || k === 'arrowup') handle('gas', 0);
+            if (k === 's' || k === 'arrowdown') handle('brake', 0);
+            if (k === ' ') handle('clutch', 0);
+        });
+
+        // Touch
+        const bind = (id, action) => {
+            const el = document.getElementById(id);
+            if(el) {
+                el.addEventListener('touchstart', (e)=>{e.preventDefault(); handle(action,1)});
+                el.addEventListener('touchend', (e)=>{e.preventDefault(); handle(action,0)});
+                el.addEventListener('mousedown', (e)=>{e.preventDefault(); handle(action,1)});
+                el.addEventListener('mouseup', (e)=>{e.preventDefault(); handle(action,0)});
+            }
+        }
+        bind('btn-gas', 'gas');
+        bind('btn-brake', 'brake');
+        bind('btn-clutch', 'clutch');
+        
+        document.getElementById('btn-up').onclick = () => this.playerCar.shiftUp();
+        document.getElementById('btn-down').onclick = () => this.playerCar.shiftDown();
+    },
+
+    loop() {
+        if (this.state === 'RACE') {
+            this.updateRace();
+        }
+        if (this.screenShake > 0) this.screenShake *= 0.9;
+        this.draw();
+        requestAnimationFrame(() => this.loop());
+    },
+
+    updateRace() {
+        const dt = 0.016;
+        
+        this.playerCar.update(dt);
+        if (this.playerCar.gas > 0 && this.playerCar.gear > 0 && this.playerCar.rpm > this.playerCar.redline-500) {
+             this.createSmoke(this.playerCar, 1); // High RPM smoke
+        }
+
+        // Opponent Logic
+        if (this.lights < 4) {
+            this.opponentCar.clutch = 1;
+            this.opponentCar.gear = 1;
+            this.opponentCar.gas = (Date.now() % 800 < 300) ? 1 : 0; // Revving at line
+        } else {
+            const runTime = (Date.now() - this.raceStartTime) / 1000;
+            if (runTime > this.opponentCar.reactionTime) {
+                this.opponentCar.clutch = 0;
+                this.opponentCar.gas = 1;
+                // Shift Logic
+                const shiftPoint = this.opponentCar.redline - 200;
+                if (this.opponentCar.rpm > shiftPoint && this.opponentCar.gear < this.opponentCar.gearRatios.length - 1) {
+                    this.opponentCar.gear++;
+                    this.createBackfire(this.opponentCar);
+                }
+            }
+        }
+        this.opponentCar.update(dt);
+
+        // Lights Logic
+        if (this.lights < 4) {
+            if (Date.now() - this.lightTimer > 1000) {
+                this.lights++;
+                this.lightTimer = Date.now();
+                if (this.lights === 4) {
+                    this.raceStartTime = Date.now();
+                    this.showNotification("GO!");
+                }
+            }
+            // False Start
+            if (this.playerCar.speed > 0.1 && this.lights < 4) {
+                 this.finishRace(false, "FALSE START");
+            }
+        } else {
+            if (!this.finished) {
+                if (this.playerCar.x >= this.raceDistance) this.finishRace(true);
+                else if (this.opponentCar.x >= this.raceDistance) this.finishRace(false);
+            }
+        }
+        
+        if(this.lights===4 && !this.finished) {
+            document.getElementById('race-timer').innerText = ((Date.now()-this.raceStartTime)/1000).toFixed(2);
+        }
+    },
+
+    finishRace(won, reason) {
+        if(this.finished) return; 
+        const raceEndTime = Date.now();
+        
+        let playerTime = reason === "FALSE START" ? 999 : ((raceEndTime - this.raceStartTime) / 1000);
+        let reactionTime = reason === "FALSE START" ? 999 : (this.raceStartTime - this.lightTimer) / 1000;
+        let prize = 0;
+
+        if (won) {
+            if (this.raceMode === 'quick') {
+                prize = 250 + Math.floor(Math.random()*100);
+            } else if (this.raceMode === 'tournament') {
+                prize = 1000 * this.tournamentRound;
+                if (this.tournamentRound < 8) this.tournamentRound++;
+                else { prize += 10000; this.tournamentRound=1; }
+            }
+        } else {
+            prize = 50; // Consolation
+        }
+
+        this.finished = true;
+        this.cash += prize;
+        this.raceResults = { playerTime, playerReaction: reactionTime, won, opponentName: this.opponentCar.name };
+        
+        setTimeout(() => {
+            this.state = 'RESULTS';
+            document.getElementById('ui-layer').classList.add('hidden');
+            document.getElementById('results-menu').classList.remove('hidden');
+            
+            document.getElementById('result-title').innerText = reason || (won ? "VICTORY" : "DEFEAT");
+            document.getElementById('result-title').style.color = won ? '#4caf50' : '#f44336';
+            document.getElementById('result-time').innerText = playerTime.toFixed(3) + 's';
+            document.getElementById('result-reaction').innerText = reactionTime.toFixed(3) + 's';
+            document.getElementById('result-prize').innerText = '$' + prize;
+        }, 1000);
+    },
+
+    // --- DRAWING & VISUALS ---
+
+    draw() {
+        const W = this.canvas.width;
+        const H = this.canvas.height;
+        const ctx = this.ctx;
+        
+        // Shake Offset
+        const sx = (Math.random()-0.5)*this.screenShake;
+        const sy = (Math.random()-0.5)*this.screenShake;
+
+        if (this.state !== 'RACE') {
+            // Garage BG
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0,0,W,H);
+            
+            // Grid Floor
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            // Pseudo 3D floor
+            for(let i=H/2; i<H; i+=20) {
+                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke();
+            }
+            for(let i=0; i<W; i+=100) {
+                ctx.beginPath(); ctx.moveTo(i + (i-W/2), H); ctx.lineTo(i, H/2); ctx.stroke();
+            }
+            
+            // Spotlight
+            let carToDraw = null;
+            if (this.menuState === 'DEALER') carToDraw = this.previewCar;
+            else if (this.menuState === 'MAIN' || this.menuState === 'GARAGE' || this.menuState === 'SHOP') carToDraw = this.playerCar;
+            
+            if (carToDraw) {
+                // Glow
+                let grad = ctx.createRadialGradient(W/2, H/2+50, 10, W/2, H/2+50, 300);
+                grad.addColorStop(0, 'rgba(255,255,255,0.1)');
+                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0,0,W,H);
+
+                const originalX = carToDraw.x;
+                carToDraw.x = 0; 
+                ctx.save();
+                ctx.translate(W/2 - 120, H/2 - 40);
+                ctx.scale(2.5, 2.5);
+                this.drawCar(ctx, carToDraw, 0, 0);
+                ctx.restore();
+                carToDraw.x = originalX;
+            }
+            return;
+        }
+
+        ctx.save();
+        ctx.translate(sx, sy);
+
+        // Sky
+        let grad = ctx.createLinearGradient(0,0,0,H);
+        grad.addColorStop(0, '#021a35');
+        grad.addColorStop(1, '#0d47a1');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,W,H);
+
+        // Camera
+        const metersToPx = 20; 
+        let camX = this.playerCar.x * metersToPx - 150; 
+        if (camX < 0) camX = 0;
+
+        // Parallax City Background
+        ctx.fillStyle = '#000';
+        for(let i=0; i<W/20 + 2; i++) {
+            let h = 50 + Math.sin(i*132)*30 + Math.cos(i*23)*20;
+            let x = (i*40) - (camX * 0.1) % 40; 
+            // Wrap around logic simplified for canvas strip
+            let drawX = (i*40) - (camX * 0.1);
+            while(drawX < -50) drawX += W + 100;
+            // Actually, simplified scrolling:
+            drawX = ((i*40) - (camX * 0.1)) % (W+100);
+            if(drawX < 0) drawX += W+100;
+            
+            ctx.fillRect(drawX, H - 150 - h, 42, h);
+            // Windows
+            ctx.fillStyle = '#222';
+            if (Math.random() > 0.9) ctx.fillStyle = '#553';
+            ctx.fillRect(drawX + 10, H - 150 - h + 10, 5, 5);
+            ctx.fillStyle = '#000';
+        }
+
+        const roadY = H - 150;
+        
+        // Road
+        ctx.fillStyle = '#1a1a1a'; // Asphalt
+        ctx.fillRect(0, roadY, W, 150); 
+        
+        // Horizon Line
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, roadY - 2, W, 2);
+
+        // Lane Markers
+        ctx.fillStyle = '#444';
+        const lineOffset = -(camX % 100); 
+        for (let i = -100; i < W + 100; i += 100) {
+            ctx.fillRect(i + lineOffset, roadY + 68, 60, 4);
+        }
+
+        // Finish Line
+        const finishX = (this.raceDistance * metersToPx) - camX;
+        if (finishX > -100 && finishX < W + 100) {
+            ctx.fillStyle = '#fff';
+            for(let i=0; i<15; i++) {
+                ctx.fillRect(finishX, roadY + (i*10), 20, 10);
+                ctx.fillStyle = ctx.fillStyle === '#ffffff' ? '#000000' : '#ffffff';
+            }
+            ctx.fillStyle = '#ffffff'; 
+            for(let i=0; i<15; i++) {
+                ctx.fillRect(finishX+20, roadY + (i*10), 20, 10);
+                ctx.fillStyle = ctx.fillStyle === '#ffffff' ? '#000000' : '#ffffff';
+            }
+            // Gantry
+            ctx.fillStyle = '#444';
+            ctx.fillRect(finishX-10, roadY-100, 10, 100);
+            ctx.fillRect(finishX+50, roadY-100, 10, 100);
+            ctx.fillRect(finishX-10, roadY-100, 70, 20);
+            ctx.fillStyle = '#ffeb3b';
+            ctx.font = '10px Arial';
+            ctx.fillText("FINISH", finishX, roadY-90);
+        }
+
+        // Distance Markers
+        ctx.fillStyle = '#555';
+        ctx.font = '10px "Press Start 2P"';
+        for (let m = 100; m <= 400; m+=100) {
+            const mx = (m * metersToPx) - camX;
+            if (mx > -50 && mx < W + 50) {
+                ctx.fillText(`${m}m`, mx, roadY + 145);
+            }
+        }
+
+        // Start Lights Tree
+        const treeX = (0 * metersToPx) - camX + 150; 
+        if (treeX > -50 && treeX < W) {
+            ctx.fillStyle = '#111';
+            ctx.fillRect(treeX, roadY - 120, 15, 120);
+            const colors = ['#fbc02d', '#fbc02d', '#fbc02d', '#4caf50'];
+            for(let i=0; i<4; i++) {
+                ctx.fillStyle = '#221100';
+                if (i===3) ctx.fillStyle = '#001100';
+                if (this.lights > i) ctx.fillStyle = colors[i];
+                
+                ctx.beginPath();
+                ctx.arc(treeX + 7, roadY - 100 + (i*25), 8, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        // Render Cars
+        const pX = (this.playerCar.x * metersToPx) - camX + 50;
+        const oX = (this.opponentCar.x * metersToPx) - camX + 50;
+        
+        // Opponent
+        this.drawCar(ctx, this.opponentCar, oX, roadY + 10, 0.9);
+        // Player
+        this.drawCar(ctx, this.playerCar, pX, roadY + 50, 1.1);
+
+        // Particles
+        this.particles.forEach((p, index) => {
+            p.draw(ctx, camX, roadY);
+            p.update();
+            if (p.life <= 0) this.particles.splice(index, 1);
+        });
+
+        ctx.restore();
+
+        // HUD - Dashboard
+        this.drawDashboard(W, H);
+    },
+
+    drawDashboard(W, H) {
+        const cx = W - 90;
+        const cy = H - 90;
+        const r = 70;
+
+        // Gauge BG
+        const ctx = this.ctx;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, Math.PI * 0.8, Math.PI * 2.2); 
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#555';
+        ctx.stroke();
+
+        // RPM Segments
+        for(let i=0; i<=10; i++) {
+            const ang = Math.PI*0.8 + (i/10)*(Math.PI*1.4);
+            const tx = cx + Math.cos(ang)*(r-10);
+            const ty = cy + Math.sin(ang)*(r-10);
+            
+            ctx.fillStyle = (i > 7) ? '#d32f2f' : '#fff';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(i, tx, ty);
+        }
+
+        // Needle
+        const rpmPct = Math.min(this.playerCar.rpm, 10000) / 10000;
+        const needleAng = Math.PI*0.8 + (rpmPct * Math.PI*1.4);
+        
+        ctx.strokeStyle = '#f44336';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(needleAng)*(r-5), cy + Math.sin(needleAng)*(r-5));
+        ctx.stroke();
+        
+        // Center Pin
+        ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2); ctx.fillStyle='#333'; ctx.fill();
+
+        // Digital Speed
+        ctx.fillStyle = '#fff';
+        ctx.font = '24px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        
+        const mph = Math.floor(this.playerCar.speed * 2.23);
+        ctx.fillText(mph, cx, cy + 40);
+        ctx.font = '10px "Press Start 2P"';
+        ctx.fillStyle = '#aaa';
+        ctx.fillText("MPH", cx, cy + 55);
+        
+        // Gear Indicator
+        ctx.fillStyle = '#ffeb3b';
+        ctx.font = '30px "Press Start 2P"';
+        const gear = this.playerCar.gear === 0 ? 'N' : this.playerCar.gear;
+        ctx.fillText(gear, cx, cy - 30);
+    },
+
+    // Procedural Car Pixel Art
+    drawCar(ctx, car, x, y, scale) {
+        ctx.save();
+        // Squat rotation
+        const rot = car.squat * 0.05; 
+        ctx.translate(x, y + car.squat);
+        ctx.rotate(-rot * 0.5 * (Math.PI/180));
+        ctx.scale(scale, scale);
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(5, 38, 95, 8);
+
+        // Base Body Color
+        ctx.fillStyle = car.color;
+
+        if (car.type === 'hatch') {
+            // Boxy shape
+            ctx.fillRect(0, 20, 95, 18); // Main chassis
+            ctx.fillRect(15, 5, 50, 15); // Cabin
+            // Windows
+            ctx.fillStyle = '#223';
+            ctx.fillRect(20, 8, 20, 10);
+            ctx.fillRect(45, 8, 15, 10);
+            // Spoiler
+            ctx.fillStyle = car.secondaryColor;
+            ctx.fillRect(5, 5, 5, 15);
+            ctx.fillRect(0, 5, 15, 3);
+        } 
+        else if (car.type === 'sedan') {
+            ctx.fillRect(0, 22, 100, 15);
+            ctx.beginPath(); ctx.moveTo(10,22); ctx.lineTo(25,8); ctx.lineTo(75,8); ctx.lineTo(90,22); ctx.fill();
+            // Windows
+            ctx.fillStyle = '#223';
+            ctx.beginPath(); ctx.moveTo(28,20); ctx.lineTo(32,10); ctx.lineTo(50,10); ctx.lineTo(50,20); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(54,20); ctx.lineTo(54,10); ctx.lineTo(70,10); ctx.lineTo(78,20); ctx.fill();
+            // Spoiler
+            if(car.upgrades.aero) {
+                ctx.fillStyle = '#111';
+                ctx.fillRect(0, 15, 5, 10);
+                ctx.fillRect(-5, 15, 15, 2);
+            }
+        }
+        else if (car.type === 'muscle') {
+            // Long hood
+            ctx.fillRect(5, 20, 100, 18);
+            ctx.fillRect(15, 8, 45, 12);
+            // Stripe
+            ctx.fillStyle = car.secondaryColor;
+            ctx.fillRect(5, 28, 100, 4);
+            // Windows
+            ctx.fillStyle = '#223';
+            ctx.fillRect(20, 10, 35, 10);
+            // Blower
+            if (car.upgrades.engine > 2) {
+                ctx.fillStyle = '#ccc';
+                ctx.fillRect(75, 15, 15, 5); // Supercharger
+                ctx.beginPath(); ctx.arc(80, 15, 4, 0, Math.PI*2); ctx.fill();
+            }
+        }
+        else if (car.type === 'super') {
+            // Wedge
+            ctx.beginPath();
+            ctx.moveTo(0, 35);
+            ctx.lineTo(0, 20);
+            ctx.lineTo(30, 10);
+            ctx.lineTo(60, 10);
+            ctx.lineTo(100, 25);
+            ctx.lineTo(100, 35);
+            ctx.fill();
+            // Cabin
+            ctx.fillStyle = '#112';
+            ctx.beginPath(); ctx.moveTo(35,12); ctx.lineTo(58,12); ctx.lineTo(75,22); ctx.lineTo(25,22); ctx.fill();
+            // Wing
+            ctx.fillStyle = car.secondaryColor;
+            ctx.fillRect(0, 15, 5, 10);
+            ctx.fillRect(-5, 12, 20, 3);
+        }
+        else if (car.type === 'dragster') {
+            // Long
+            ctx.fillRect(-10, 25, 120, 10);
+            ctx.fillStyle = car.secondaryColor;
+            ctx.fillRect(10, 15, 20, 10); // Cage
+            // Big spoiler
+            ctx.fillStyle = '#ddd';
+            ctx.moveTo(-10, 25); ctx.lineTo(-20, 5); ctx.lineTo(-5, 5); ctx.lineTo(0, 25); ctx.fill();
+        }
+
+        // Wheels
+        const rTire = car.upgrades.slicks ? 13 : 11;
+        const fTire = car.type === 'dragster' ? 7 : 11;
+
+        // Rear
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(20, 35, rTire, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(20, 35, rTire/2, 0, Math.PI*2); ctx.fill(); // Rim
+        
+        // Front
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(85, 38, fTire, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(85, 38, fTire/2, 0, Math.PI*2); ctx.fill(); // Rim
+
+        // Lights
+        ctx.fillStyle = '#ffeb3b';
+        ctx.fillRect(95, 25, 5, 4); // Head
+        ctx.fillStyle = '#d50000';
+        ctx.fillRect(0, 25, 3, 4); // Tail
+
+        // Parachute
+        if (car.upgrades.parachute && car.speed < 10 && car.type !== 'hatch') {
+            ctx.fillStyle = '#bbb';
+            ctx.fillRect(-8, 22, 8, 8);
+        }
+
+        ctx.restore();
+    },
+
+    startRaceMode(mode) {
+        this.raceMode = mode;
+        this.state = 'RACE';
+        this.menuState = 'RACE';
+        
+        document.querySelectorAll('.menu-overlay').forEach(el => el.classList.add('hidden'));
+        document.getElementById('ui-layer').classList.remove('hidden');
+        document.getElementById('hud').classList.remove('hidden');
+        document.getElementById('controls').classList.remove('hidden');
+        
+        let oppIndex;
+        let scaleFactor = 1.0;
+
+        if (mode === 'quick') {
+            // Random opponent based on player HP
+            const tier = Math.floor(this.playerCar.hp / 200);
+            oppIndex = Math.min(this.carDefs.length-1, Math.max(0, tier + Math.floor(Math.random()*2 - 1)));
+            scaleFactor = 0.9 + Math.random()*0.2;
+        } else if (mode === 'tournament') {
+            oppIndex = Math.min(this.carDefs.length - 1, this.tournamentRound - 1);
+            scaleFactor = 1.0 + (this.tournamentRound * 0.1); 
+        }
+
+        const def = this.carDefs[oppIndex];
+        this.opponentCar = new Car(def);
+        this.opponentCar.hp = Math.floor(def.hp * scaleFactor);
+        this.opponentCar.reactionTime = Math.max(0.1, 0.6 - (scaleFactor * 0.2)); // Harder opps react faster
+
+        document.getElementById('opp-name').innerText = this.opponentCar.name;
+        document.getElementById('tournament-round').innerText = this.tournamentRound;
+
+        // Reset Player
+        this.playerCar.x = 0;
+        this.playerCar.speed = 0;
+        this.playerCar.rpm = 1000;
+        this.playerCar.gear = 0;
+        this.playerCar.gas = 0; 
+        this.playerCar.brake = 0;
+        this.playerCar.clutch = 0;
+        
+        this.opponentCar.x = 0;
+        this.opponentCar.speed = 0;
+        
+        this.lights = 0;
+        this.lightTimer = Date.now();
+        this.raceStartTime = 0;
+        this.finished = false;
+        this.particles = [];
+    },
+
+    openGarage() {
+        this.menuState = 'GARAGE';
+        document.getElementById('main-menu').classList.add('hidden');
+        document.getElementById('garage-menu').classList.remove('hidden');
+        
+        const container = document.getElementById('car-stats-display');
+        container.innerHTML = '';
+        this.ownedCars.forEach((car, index) => {
+            const div = document.createElement('div');
+            div.className = `car-item ${index === this.selectedCarIndex ? 'selected' : ''}`;
+            div.innerHTML = `
+                <div>
+                    <div style="color:${car.color}; font-size:16px;">${car.name}</div>
+                    <div style="font-size:10px; color:#aaa; margin-top:5px;">
+                       HP: ${car.hp.toFixed(0)} | Weight: ${car.weight}kg | Grip: ${car.grip.toFixed(1)}
+                    </div>
+                </div>
+                ${index === this.selectedCarIndex ? '<div style="color:#ffeb3b">DRIVING</div>' : '<div class="btn" style="width:60px; height:20px; font-size:8px;">DRIVE</div>'}
+            `;
+            div.onclick = () => {
+                this.selectedCarIndex = index;
+                this.playerCar = this.ownedCars[index];
+                this.openGarage(); // Refresh
+            };
+            container.appendChild(div);
+        });
+    },
+
+    openShop() {
+        this.menuState = 'SHOP';
+        document.getElementById('main-menu').classList.add('hidden');
+        document.getElementById('shop-menu').classList.remove('hidden');
+        this.updateMenuUI();
+
+        const upgrades = [
+            { key: 'engine', name: "ECU Remap", stages: 5, cost: 500, desc: "+15% HP per stage" },
+            { key: 'injector', name: "Fuel System", stages: 5, cost: 800, desc: "+8% HP per stage" },
+            { key: 'chassis', name: "Weight Reduction", stages: 3, cost: 1200, desc: "-40kg per stage" },
+            { key: 'shortGears', name: "Short Gears", stages: 3, cost: 1500, desc: "Faster Accel, Lower Top Speed" },
+            { key: 'slicks', name: "Drag Slicks", stages: 1, cost: 2500, desc: "Essential for 500HP+" },
+            { key: 'performanceGearbox', name: "Pro Transmission", stages: 1, cost: 8000, desc: "7-Speed Close Ratio Box" },
+        ];
+
+        const container = document.getElementById('shop-items');
+        container.innerHTML = '';
+        
+        upgrades.forEach(item => {
+            const lvl = this.playerCar.upgrades[item.key] || 0;
+            const isBool = item.stages === 1;
+            const isMax = isBool ? lvl : lvl >= item.stages;
+            const cost = isMax ? 0 : item.cost * (isBool ? 1 : lvl); 
+
+            const div = document.createElement('div');
+            div.className = 'shop-item';
+            div.innerHTML = `
+                <div class="shop-item-header">
+                    <span style="color:#fff">${item.name} <span style="color:#666">${isBool ? '' : 'Lvl '+lvl}</span></span>
+                    <span style="color:${isMax ? '#4caf50' : (this.cash>=cost?'#4caf50':'#f44336')}">${isMax ? "MAX" : "$"+cost}</span>
+                </div>
+                <div class="shop-item-detail">${item.desc}</div>
+            `;
+            
+            div.onclick = () => {
+                if(isMax) return;
+                if(this.cash >= cost) {
+                    this.cash -= cost;
+                    if(isBool) this.playerCar.upgrades[item.key] = true;
+                    else this.playerCar.upgrades[item.key]++;
+                    
+                    this.playerCar.applyUpgrades();
+                    this.updateMenuUI();
+                    this.openShop();
+                    this.showNotification("INSTALLED");
+                } else {
+                    this.showNotification("TOO EXPENSIVE");
+                }
+            };
+            container.appendChild(div);
+        });
+    },
+
+    openDealership() {
+        this.menuState = 'DEALER';
+        document.getElementById('main-menu').classList.add('hidden');
+        document.getElementById('dealership-menu').classList.remove('hidden');
+        document.getElementById('gemini-review-output').style.display = 'none';
+        this.updateMenuUI();
+        
+        const container = document.getElementById('dealer-items');
+        container.innerHTML = '';
+        
+        if(!this.previewCar) this.previewCar = new Car(this.carDefs[1]);
+
+        this.carDefs.forEach(def => {
+            const isOwned = this.ownedCars.some(c => c.name === def.name);
+            const div = document.createElement('div');
+            div.className = `car-item ${isOwned ? 'owned' : ''}`;
+            div.innerHTML = `
+                <div>${def.name} <span style="font-size:8px; color:#888">${def.hp} HP</span></div>
+                <div style="color:${isOwned ? '#aaa' : (this.cash >= def.price ? '#4caf50' : '#f44336')}">
+                    ${isOwned ? "OWNED" : "$"+def.price}
+                </div>
+            `;
+            
+            div.onclick = () => {
+                this.previewCar = new Car(def);
+                if(isOwned) return;
+                
+                if(confirm(`Purchase ${def.name} for $${def.price}?`)) {
+                    if(this.cash >= def.price) {
+                        this.cash -= def.price;
+                        const newCar = new Car(JSON.parse(JSON.stringify(def)));
+                        this.ownedCars.push(newCar);
+                        this.playerCar = newCar;
+                        this.selectedCarIndex = this.ownedCars.length - 1;
+                        this.updateMenuUI();
+                        this.openDealership();
+                        this.showNotification("PURCHASE SUCCESSFUL");
+                    } else {
+                        this.showNotification("INSUFFICIENT FUNDS");
+                    }
+                }
+            }
+            container.appendChild(div);
+        });
+    },
+
+    returnToMenu() {
+        this.state = 'MENU';
+        this.menuState = 'MAIN';
+        document.querySelectorAll('.menu-overlay').forEach(el => el.classList.add('hidden'));
+        document.getElementById('ui-layer').classList.remove('hidden');
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('controls').classList.add('hidden');
+        document.getElementById('main-menu').classList.remove('hidden');
+        
+        this.playerCar.x = 0;
+        this.playerCar.speed = 0;
+        this.updateMenuUI();
+    },
+
+    updateMenuUI() {
+        document.getElementById('menu-cash').innerText = this.cash;
+        document.getElementById('shop-cash').innerText = this.cash;
+        document.getElementById('dealer-cash').innerText = this.cash;
+    },
+
+    showNotification(text) {
+        const n = document.getElementById('notification');
+        n.innerText = text;
+        n.style.opacity = 1;
+        n.style.top = '20%';
+        setTimeout(() => { n.style.opacity = 0; n.style.top = '25%'; }, 1000);
+    }
+};
+
+window.onload = () => game.init();
+
+</script>
+</body>
+</html>
