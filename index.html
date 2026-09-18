@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pixel Drag Racer - Evo 2.0</title>
+    <title>Pixel Drag Racer - Evo 3.3</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-
+        * { box-sizing: border-box; }
         body {
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
             background-color: #050505;
             color: white;
             font-family: 'Press Start 2P', cursive;
@@ -18,112 +17,137 @@
             user-select: none;
             -webkit-user-select: none;
         }
-
         #game-container {
             position: relative;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
             background: #111;
         }
-
         canvas {
             display: block;
-            image-rendering: pixelated; 
-            width: 100%;
-            height: 100%;
+            image-rendering: pixelated;
+            width: 100%; height: 100%;
         }
-
         #ui-layer {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             pointer-events: none;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
         }
 
-        /* Controls */
-        .controls-overlay {
+        #pause-btn {
             position: absolute;
-            bottom: 20px;
-            width: 100%;
-            pointer-events: auto;
-            display: flex;
-            justify-content: space-between;
-            padding: 0 40px;
-            box-sizing: border-box;
-            opacity: 0.9;
-        }
-
-        @media (min-width: 800px) {
-            .controls-overlay { opacity: 0.3; padding: 0 100px; bottom: 40px; }
-            .controls-overlay:hover { opacity: 0.8; transition: 0.3s; }
-        }
-
-        .pedal-group, .shifter-group {
-            display: flex;
-            gap: 15px;
-            align-items: flex-end;
-        }
-
-        .btn {
-            background: #222;
-            border: 4px solid #444;
-            color: #ddd;
+            top: 12px;
+            right: 12px;
+            width: 44px;
+            height: 44px;
+            background: rgba(0,0,0,0.75);
+            border: 2px solid #555;
             border-radius: 8px;
+            color: #ffeb3b;
             font-family: 'Press Start 2P', cursive;
-            font-size: 10px;
+            font-size: 14px;
             display: flex;
             justify-content: center;
             align-items: center;
             cursor: pointer;
+            pointer-events: auto;
+            z-index: 7;
+            box-shadow: 3px 3px 0 #000;
             transition: all 0.05s;
-            box-shadow: 0 6px 0 #111;
+        }
+        #pause-btn:hover { border-color: #ffeb3b; background: rgba(0,0,0,0.95); }
+        #pause-btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0; }
+        #pause-btn.hidden { display: none; }
+
+        .controls-overlay {
+            position: absolute;
+            bottom: 18px;
+            left: 0; right: 0;
+            padding: 0 18px;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            z-index: 3;
+        }
+
+        @media (min-width: 900px) {
+            .controls-overlay { padding: 0 60px; bottom: 30px; }
+        }
+
+        .shifter-group {
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .pedal-group {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            pointer-events: auto;
+        }
+
+        .btn {
+            background: #222;
+            border: 3px solid #444;
+            color: #ddd;
+            border-radius: 8px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 9px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.05s;
+            box-shadow: 0 5px 0 #111;
             text-align: center;
             text-transform: uppercase;
+            padding: 6px 4px;
+            line-height: 1.5;
+            user-select: none;
         }
-
         .btn:active, .btn.active {
-            transform: translateY(6px);
+            transform: translateY(5px);
             box-shadow: 0 0 0 #111;
-            filter: brightness(1.2);
+            filter: brightness(1.4);
         }
 
-        .btn-pedal { width: 80px; height: 140px; }
-        .btn-shift { width: 80px; height: 80px; border-radius: 50%; }
+        .btn-shift { width: 62px; height: 82px; border-radius: 10px; }
 
-        .clutch { background: #2c3e50; border-color: #34495e; }
-        .brake { background: #5a2a2a; border-color: #8b3a3a; height: 100px; }
-        .gas { background: #242; border-color: #2ecc71; }
-        
-        .shift-up { border-color: #f1c40f; color: #f1c40f; }
-        .shift-down { border-color: #e74c3c; color: #e74c3c; }
+        .btn-pedal { width: 64px; height: 106px; font-size: 9px; }
+        .btn-pedal.brake { height: 82px; }
 
-        /* HUD */
+        .clutch { background: #1a2a3d; border-color: #34495e; }
+        .brake  { background: #4a2020; border-color: #8b3a3a; }
+        .gas    { background: #17331a; border-color: #2ecc71; }
+
+        .shift-up   { border-color: #f1c40f; color: #f1c40f; background: #2a2200; }
+        .shift-down { border-color: #e74c3c; color: #e74c3c; background: #2a0a0a; }
+
+        .btn .key { font-size: 7px; color: #666; margin-top: 2px; }
+
         .hud {
-            padding: 30px;
+            padding: 18px 70px 18px 22px;
             width: 100%;
-            box-sizing: border-box;
             display: flex;
             justify-content: space-between;
             text-shadow: 3px 3px 0 #000;
-            font-size: 16px;
+            font-size: 14px;
             z-index: 5;
+            pointer-events: none;
         }
 
-        /* Menus */
         .menu-overlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             background: rgba(10, 10, 15, 0.98);
             display: flex;
             flex-direction: column;
@@ -133,31 +157,33 @@
             pointer-events: auto;
             z-index: 10;
         }
-
         .hidden { display: none !important; }
-
-        h1 { 
-            color: #ffeb3b; 
-            text-shadow: 4px 4px 0 #b71c1c; 
-            margin-bottom: 10px; 
-            text-align: center; 
+        h1 {
+            color: #ffeb3b;
+            text-shadow: 4px 4px 0 #b71c1c;
+            margin-bottom: 10px;
+            text-align: center;
             font-size: 40px;
             line-height: 1.2;
             letter-spacing: -2px;
             transform: skew(-5deg);
         }
-
-        h2 { color: #fff; margin-bottom: 20px; text-shadow: 2px 2px 0 #000; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 10px; width: 80%; text-align: center;}
-        
+        h2 {
+            color: #fff; margin-bottom: 20px;
+            text-shadow: 2px 2px 0 #000;
+            text-transform: uppercase;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+            width: 80%; text-align: center;
+        }
         .menu-grid {
             display: grid;
             grid-template-columns: 1fr;
             gap: 15px;
             margin-bottom: 20px;
-            margin-top: 140px; /* Space for car preview */
+            margin-top: 140px;
             width: 250px;
         }
-
         .menu-btn {
             padding: 18px 10px;
             font-size: 14px;
@@ -169,12 +195,12 @@
             cursor: pointer;
             box-shadow: 4px 4px 0 #000;
             text-transform: uppercase;
+            font-family: 'Press Start 2P', cursive;
         }
         .menu-btn:hover { background: #1e88e5; transform: translateX(-2px); }
         .menu-btn:active { transform: translateX(2px); box-shadow: 0 0 0; }
         .menu-btn.red { background: #c62828; border-color: #ef5350; }
         .menu-btn.green { background: #2e7d32; border-color: #66bb6a; }
-        
         .scroll-container {
             max-height: 45vh;
             overflow-y: auto;
@@ -186,7 +212,6 @@
             scrollbar-width: thin;
             scrollbar-color: #555 #222;
         }
-        
         .shop-item, .car-item {
             display: flex;
             justify-content: space-between;
@@ -197,14 +222,11 @@
             padding: 15px;
             margin: 6px 0;
             border: 1px solid #333;
-            box-sizing: border-box;
             cursor: pointer;
             transition: 0.2s;
         }
         .shop-item:hover, .car-item:hover { background: #2a2a2a; border-color: #666; }
-
         .shop-item { flex-direction: column; align-items: flex-start; }
-
         .shop-item-header {
             width: 100%;
             display: flex;
@@ -212,24 +234,17 @@
             align-items: center;
             font-size: 12px;
         }
-
         .shop-item-detail {
-            font-size: 9px;
-            color: #888;
-            margin-top: 8px;
-            text-align: left;
-            line-height: 1.4;
+            font-size: 9px; color: #888;
+            margin-top: 8px; text-align: left; line-height: 1.4;
         }
-        
         .car-item.owned { border-left: 5px solid #4caf50; }
         .car-item.selected { border: 2px solid #ffeb3b; background: #2c2c22; }
-
         #notification {
             position: absolute;
-            top: 25%;
-            left: 50%;
+            top: 25%; left: 50%;
             transform: translateX(-50%);
-            font-size: 28px;
+            font-size: 26px;
             color: #ffeb3b;
             text-shadow: 4px 4px 0 #000;
             opacity: 0;
@@ -240,25 +255,16 @@
             white-space: nowrap;
             font-style: italic;
         }
-        
-        .llm-output-box {
-            max-width: 500px;
-            width: 85%;
-            margin-top: 15px;
-            background: #222;
-            padding: 15px;
-            font-size: 10px;
-            color: #4fc3f7;
-            border: 1px dashed #4fc3f7;
-            text-align: left;
-            font-family: monospace;
-            line-height: 1.5;
-            display: none;
+        #save-indicator {
+            position: fixed;
+            bottom: 10px; right: 15px;
+            font-size: 8px;
+            color: #4caf50;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+            z-index: 99;
         }
-
-        /* Loading Spinner */
-        .typing::after { content: '...'; animation: blink 1s infinite; }
-        @keyframes blink { 0% { opacity: .2; } 20% { opacity: 1; } 100% { opacity: .2; } }
     </style>
 </head>
 <body>
@@ -269,32 +275,35 @@
     <div id="ui-layer">
         <div id="hud" class="hud hidden">
             <div id="race-stats">
-                <div style="color:#ffeb3b">ROUND: <span id="tournament-round">1</span></div>
-                <div style="color:#aaa; font-size: 10px; margin-top:5px">OPPONENT: <span id="opp-name">Loading...</span></div>
+                <div style="color:#ffeb3b; font-size:12px">ROUND: <span id="tournament-round">1</span></div>
+                <div style="color:#aaa; font-size: 9px; margin-top:5px">OPPONENT: <span id="opp-name">---</span></div>
             </div>
             <div id="race-info" style="text-align: right;">
-                <div id="race-timer" style="color:#fff; font-size: 24px;">0.00</div>
+                <div id="race-timer" style="color:#fff; font-size: 20px;">0.000</div>
+                <div id="reaction-display" style="color:#4fc3f7; font-size: 9px; margin-top:3px;"></div>
             </div>
         </div>
-        
+
         <div id="controls" class="controls-overlay hidden">
             <div class="shifter-group">
-                <div class="btn btn-shift shift-down" id="btn-down">DOWN<br>(A)</div>
-                <div class="btn btn-shift shift-up" id="btn-up">UP<br>(D)</div>
+                <div class="btn btn-shift shift-down" id="btn-down">DN<span class="key">(A)</span></div>
+                <div class="btn btn-shift shift-up" id="btn-up">UP<span class="key">(D)</span></div>
             </div>
-            
             <div class="pedal-group">
-                <div class="btn btn-pedal clutch" id="btn-clutch">CLUTCH<br>(Space)</div>
-                <div class="btn btn-pedal brake" id="btn-brake">BRAKE<br>(S)</div>
-                <div class="btn btn-pedal gas" id="btn-gas">GAS<br>(W)</div>
+                <div class="btn btn-pedal clutch" id="btn-clutch">CLU<span class="key">(SPACE)</span></div>
+                <div class="btn btn-pedal brake" id="btn-brake">BRAKE<span class="key">(S)</span></div>
+                <div class="btn btn-pedal gas" id="btn-gas">GAS<span class="key">(W)</span></div>
             </div>
         </div>
     </div>
 
+    <div id="pause-btn" class="hidden" onclick="game.togglePause()">||</div>
+
+    <!-- MAIN MENU -->
     <div id="main-menu" class="menu-overlay">
         <h1>PIXEL<br>DRAG LEGENDS</h1>
         <div style="color:#4caf50; font-size: 14px; position:absolute; top: 15px; right: 20px; background:#000; padding:5px 10px; border:1px solid #333;">CASH: $<span id="menu-cash">0</span></div>
-        
+
         <div class="menu-grid">
             <div class="menu-btn" onclick="game.startRaceMode('quick')">QUICK RACE</div>
             <div class="menu-btn red" onclick="game.startRaceMode('tournament')">TOURNAMENT</div>
@@ -302,9 +311,25 @@
             <div class="menu-btn" onclick="game.openDealership()">DEALERSHIP</div>
             <div class="menu-btn green" onclick="game.openShop()">TUNE SHOP</div>
         </div>
-        
+
         <div style="margin-top:10px; font-size: 8px; color: #444;">
-            Use W/A/S/D + SPACE to Drive
+            W/A/S/D + SPACE to Drive
+        </div>
+        <div style="margin-top:6px; font-size: 7px; color: #333;">
+            <span id="menu-record"></span>
+        </div>
+    </div>
+
+    <!-- PAUSE MENU -->
+    <div id="pause-menu" class="menu-overlay hidden">
+        <h1 style="margin-top: 40px; font-size: 34px;">PAUSED</h1>
+        <div class="menu-grid" style="margin-top: 40px;">
+            <div class="menu-btn green" onclick="game.resumeRace()">RESUME</div>
+            <div class="menu-btn" onclick="game.restartRace()">RESTART</div>
+            <div class="menu-btn red" onclick="game.quitToMenu()">QUIT TO MENU</div>
+        </div>
+        <div style="margin-top:10px; font-size: 8px; color: #444;">
+            Press ESC to Resume
         </div>
     </div>
 
@@ -316,992 +341,1746 @@
 
     <div id="shop-menu" class="menu-overlay hidden">
         <h2 style="color:#4caf50">PERFORMANCE SHOP</h2>
-        <div style="color:#ffeb3b; margin-bottom: 5px;">WALLET: $<span id="shop-cash">0</span></div>
+        <div style="color:#ffeb3b; margin-bottom: 5px; font-size:12px;">WALLET: $<span id="shop-cash">0</span></div>
         <div class="scroll-container" id="shop-items"></div>
         <div class="menu-btn" style="margin-top:10px; width: 200px;" onclick="game.returnToMenu()">BACK</div>
     </div>
 
     <div id="dealership-menu" class="menu-overlay hidden">
         <h2 style="color:#f48fb1">SHOWROOM</h2>
-        <div style="color:#ffeb3b; margin-bottom: 5px;">WALLET: $<span id="dealer-cash">0</span></div>
+        <div style="color:#ffeb3b; margin-bottom: 5px; font-size:12px;">WALLET: $<span id="dealer-cash">0</span></div>
         <div class="scroll-container" id="dealer-items"></div>
-        
         <div style="margin-top: 10px; width: 90%; display: flex; gap: 10px; justify-content: center;">
-            <div class="menu-btn" onclick="game.getCarReview()" style="font-size: 10px; width: 140px;">✨ AI Review</div>
-            <div class="menu-btn" onclick="game.returnToMenu()" style="width: 140px;">BACK</div>
+            <div class="menu-btn" onclick="game.returnToMenu()" style="width: 200px;">BACK</div>
         </div>
-        
-        <div id="gemini-review-output" class="llm-output-box"></div>
     </div>
 
     <div id="results-menu" class="menu-overlay hidden">
-        <h2 id="result-title" style="font-size: 40px; margin-bottom: 10px; border:none;">WINNER</h2>
-        <div style="width: 300px; background: #222; padding: 20px; border: 4px solid #444; box-shadow: 0 10px 20px rgba(0,0,0,0.5);">
-            <div class="stat-row" style="display:flex; justify-content:space-between; margin:10px 0;">
-                <span style="color:#aaa">ET:</span> <span id="result-time" style="color:#fff">0.00s</span>
+        <h2 id="result-title" style="font-size: 36px; margin-bottom: 10px; border:none;">VICTORY</h2>
+        <div style="width: 320px; background: #222; padding: 20px; border: 4px solid #444; box-shadow: 0 10px 20px rgba(0,0,0,0.5);">
+            <div style="display:flex; justify-content:space-between; margin:10px 0; font-size:12px;">
+                <span style="color:#aaa">ET:</span> <span id="result-time" style="color:#fff">0.000s</span>
             </div>
-            <div class="stat-row" style="display:flex; justify-content:space-between; margin:10px 0;">
-                <span style="color:#aaa">Reaction:</span> <span id="result-reaction" style="color:#fff">0.00s</span>
+            <div style="display:flex; justify-content:space-between; margin:10px 0; font-size:12px;">
+                <span style="color:#aaa">Reaction:</span> <span id="result-reaction" style="color:#4fc3f7">0.000s</span>
             </div>
-            <div class="stat-row" style="display:flex; justify-content:space-between; margin:15px 0 0 0; border-top: 2px dashed #444; padding-top: 10px;">
-                <span style="color:#aaa">Prize:</span> <span id="result-prize" style="color:#4caf50; font-size: 20px;">$0</span>
+            <div style="display:flex; justify-content:space-between; margin:10px 0; font-size:12px;">
+                <span style="color:#aaa">Trap Speed:</span> <span id="result-trap" style="color:#fff">0 mph</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin:15px 0 0 0; border-top: 2px dashed #444; padding-top: 10px; font-size:14px;">
+                <span style="color:#aaa">Prize:</span> <span id="result-prize" style="color:#4caf50;">$0</span>
             </div>
         </div>
-        <div id="gemini-report-output" class="llm-output-box"></div>
-        <div class="menu-btn green" onclick="game.getRaceReport()" style="margin-top: 20px; width: 280px; font-size: 10px;">✨ Generate Race Report</div>
-        <div class="menu-btn" onclick="game.returnToMenu()" style="margin-top: 10px; width: 280px;">CONTINUE</div>
+        <div class="menu-btn" onclick="game.returnToMenu()" style="margin-top: 20px; width: 280px;">CONTINUE</div>
     </div>
 
     <div id="notification">PERFECT SHIFT</div>
+    <div id="save-indicator">SAVED</div>
 </div>
 
 <script>
-/* =========================================
-   PARTICLE SYSTEM (Enhanced)
-   ========================================= */
-class Particle {
-    constructor(x, y, type) {
-        this.x = x; 
-        this.y = y;
-        this.type = type;
-        this.life = 1.0;
-        
-        if (type === 'smoke') {
-            this.vx = (Math.random() - 0.5) * 2;
-            this.vy = (Math.random() * -2) - 0.5;
-            this.color = `rgba(200, 200, 200,`;
-            this.size = Math.random() * 5 + 3;
-            this.decay = 0.02;
-        } else if (type === 'fire') {
-            this.vx = (Math.random() - 0.5) * 5;
-            this.vy = (Math.random() * -1) - 1;
-            this.color = `rgba(255, ${Math.floor(Math.random()*200)}, 0,`;
-            this.size = Math.random() * 4 + 2;
-            this.decay = 0.08;
-        }
-    }
-    update() {
-        this.x += this.vx; 
-        this.y += this.vy;
-        this.life -= this.decay;
-        this.size += 0.2;
-    }
-    draw(ctx, camX, roadY) {
-        const pxScreen = (this.x * 20) - camX + 50; // 20 is metersToPx
-        ctx.fillStyle = this.color + this.life + ')';
-        ctx.beginPath();
-        ctx.arc(pxScreen, roadY + 80 + this.y, this.size, 0, Math.PI*2);
-        ctx.fill();
-    }
-}
+/* ═══════════════════════════════════════════════════════════════
+   PIXEL DRAG LEGENDS — Evo 3.3
+   ═══════════════════════════════════════════════════════════════ */
 
-/* =========================================
-   CAR PHYSICS & MODEL
-   ========================================= */
+'use strict';
+
+const WHEEL_RADIUS = 0.33;
+const DRIVETRAIN_EFFICIENCY = 0.90;
+const AIR_DENSITY = 1.225;
+const G = 9.81;
+const MPH_PER_MS = 2.23694;
+const FIXED_DT = 1 / 120;
+const MAX_SUBSTEPS = 5;
+
+/* ═══════════════════════════════════════════════════════════════
+   CAR
+   ═══════════════════════════════════════════════════════════════ */
 class Car {
     constructor(config) {
-        this.name = config.name || "Stock Racer";
-        
-        // Base Stats
-        this.baseHp = config.hp || 300;
-        this.baseWeight = config.weight || 1200;
-        this.baseGrip = config.grip || 1.0;
-        this.baseRedline = config.redline || 7000;
-        
+        this.name = config.name || 'Stock Racer';
         this.color = config.color || '#d32f2f';
         this.secondaryColor = config.secondaryColor || '#9a0007';
         this.price = config.price || 0;
-        this.type = config.type || 'hatch'; // hatch, sedan, muscle, super, dragster
-        
-        // Transmission
-        this.baseGearRatios = config.gearRatios || [0, 3.2, 2.2, 1.6, 1.2, 1.0, 0.8]; 
-        this.gearRatios = [...this.baseGearRatios]; 
-        this.baseFinalDrive = 4.1; 
+        this.type = config.type || 'hatch';
 
-        // State
+        this.baseHp = config.hp || 200;
+        this.baseRedline = config.redline || 7000;
+        this.baseGearRatios = config.gearRatios || [0, 3.2, 2.2, 1.6, 1.2, 1.0];
+        this.baseFinalDrive = config.finalDrive || 3.9;
+        this.baseWeight = config.weight || 1200;
+        this.baseGrip = config.grip || 1.0;
+        this.baseDragArea = config.dragArea || 0.75;
+
         this.upgrades = config.upgrades ? JSON.parse(JSON.stringify(config.upgrades)) : {
             engine: 1, injector: 1, chassis: 1, shortGears: 1,
-            slicks: false, aero: false, parachute: false, swapped: false, performanceGearbox: false
+            slicks: false, aero: false, parachute: false,
+            performanceGearbox: false, swapped: false,
         };
-        
-        // Dynamic Stats
-        this.hp = this.baseHp;
-        this.weight = this.baseWeight;
-        this.grip = this.baseGrip;
-        this.redline = this.baseRedline;
-        this.airResFactor = 1.0;
-        this.parachuteBrake = 1.0;
-        this.finalDrive = this.baseFinalDrive;
 
         this.applyUpgrades();
-
-        // Physics Realtime
-        this.x = 0;
-        this.speed = 0; // m/s
-        this.rpm = 1000;
-        this.gear = 0; 
-        this.idleRpm = 1000;
-        
-        this.wheelRadius = 0.32;
-        this.gas = 0;
-        this.brake = 0;
-        this.clutch = 0;
-        this.reactionTime = 0.5;
-        
-        // Visuals
-        this.shakeX = 0;
-        this.shakeY = 0;
-        this.squat = 0;
+        this.reset();
     }
 
     applyUpgrades() {
-        this.hp = this.baseHp;
-        this.weight = this.baseWeight;
-        this.grip = this.baseGrip;
-        this.redline = this.baseRedline;
-        this.airResFactor = 1.0;
-        this.parachuteBrake = 1.0;
-        this.finalDrive = this.baseFinalDrive;
+        const u = this.upgrades;
+        this.hp = this.baseHp * (1 + 0.12 * (u.engine - 1)) * (1 + 0.06 * (u.injector - 1));
+        this.redline = this.baseRedline + 300 * (u.engine - 1);
+        this.weight = Math.max(600, this.baseWeight - 35 * (u.chassis - 1));
+        this.grip = this.baseGrip + (u.slicks ? 0.55 : 0);
         this.gearRatios = [...this.baseGearRatios];
-
-        // Tiered
-        this.hp += this.baseHp * 0.15 * (this.upgrades.engine - 1);
-        this.redline += 400 * (this.upgrades.engine - 1);
-        this.hp += this.baseHp * 0.08 * (this.upgrades.injector - 1);
-        this.weight -= 40 * (this.upgrades.chassis - 1);
-        this.finalDrive += 0.3 * (this.upgrades.shortGears - 1);
-
-        // One-time
-        if (this.upgrades.performanceGearbox) {
-             this.gearRatios = [0, 3.5, 2.4, 1.8, 1.4, 1.1, 0.9, 0.75]; // 7 speed close ratio
+        if (u.performanceGearbox) {
+            this.gearRatios = [0, 3.4, 2.35, 1.75, 1.35, 1.08, 0.88, 0.73];
         }
-        if (this.upgrades.slicks) this.grip += 0.8;
-        if (this.upgrades.aero) this.airResFactor = 0.85;
-        if (this.upgrades.parachute) this.parachuteBrake = 1.5;
+        this.finalDrive = this.baseFinalDrive + 0.25 * (u.shortGears - 1);
+        this.dragArea = u.aero ? this.baseDragArea * 0.85 : this.baseDragArea;
+        this.parachuteDrag = u.parachute ? 2500 : 0;
+    }
+
+    reset() {
+        this.x = 0;
+        this.speed = 0;
+        this.rpm = 1000;
+        this.gear = 0;                 // N
+        this.gas = 0;
+        this.brake = 0;
+        this.clutch = 0;
+        this.shiftTimer = 0;
+        this.reactionTime = 0.5;
+        this.finished = false;
+        this.finishTime = 0;
+        this.reactionRecorded = 0;
+        this.launched = false;
+        this.trapSpeed = 0;
+        this.squat = 0;
+        this.wheelSlip = 0;
+    }
+
+    getEngineForce() {
+        if (this.gear === 0 || this.clutch > 0.5) return 0;
+        const ratio = this.gearRatios[this.gear] * this.finalDrive;
+        const powerWatts = this.hp * 745.7;
+        const speed = Math.max(this.speed, 0.5);
+        const force = (powerWatts * ratio * DRIVETRAIN_EFFICIENCY) / (speed * WHEEL_RADIUS);
+        const maxTraction = this.weight * G * this.grip * 0.7;
+        return Math.min(force, maxTraction);
     }
 
     update(dt) {
-        // Torque Curve Simulation
-        const peakTorqueRpm = this.redline * 0.65;
-        const maxTorque = (this.hp * 5252) / peakTorqueRpm; // lb-ft conversion ish
-        
-        // Rev Limiter
-        if (this.rpm > this.redline + 200) {
-            this.rpm = this.redline - 100; // Bounce
-            game.createBackfire(this);
+        if (this.shiftTimer > 0) {
+            this.shiftTimer -= dt;
+            if (this.shiftTimer <= 0) this.shiftTimer = 0;
         }
+        if (this.rpm > this.redline + 100) this.rpm = this.redline - 50;
 
-        let currentTorque = 0;
-        const r = this.rpm / this.redline;
-        let efficiency = 0;
-        if (r < 0.2) efficiency = 0.6; // Low end sluggishness
-        else efficiency = 1.0 - 1.5 * Math.pow(r - 0.65, 2); // Curve centered at 0.65
-        
-        currentTorque = maxTorque * Math.max(0.3, efficiency);
+        const inNeutral = this.gear === 0 || this.clutch > 0.5;
+        const dragForce = 0.5 * AIR_DENSITY * this.dragArea * this.speed * this.speed;
+        const rollForce = this.weight * G * 0.015;
+        const parachuteForce = this.speed > 5 ? this.parachuteDrag : 0;
 
-        const engineTorque = currentTorque * this.gas;
-        const gearRatio = this.gearRatios[this.gear] || 0;
-        const totalRatio = gearRatio * this.finalDrive;
-        
-        const airRes = 0.5 * 1.225 * 0.35 * 2.2 * this.airResFactor * this.speed * this.speed;
-        const rollRes = this.weight * 9.81 * 0.015;
-        
-        // Visual Squat
-        const targetSquat = (this.gas > 0 && this.gear > 0 && this.rpm < this.redline) ? -3 : 0;
-        this.squat += (targetSquat - this.squat) * 0.1;
+        if (inNeutral) {
+            const engineTorque = (this.hp * 745.7 / Math.max(this.rpm, 1000) / (Math.PI / 30)) * this.gas;
+            const frictionTorque = this.rpm * 0.008 + 5;
+            const netTorque = engineTorque - frictionTorque;
+            this.rpm += (netTorque / 0.25) * (Math.PI / 30) * dt;
+            if (this.gas < 0.1) this.rpm = Math.max(1000, this.rpm - 3000 * dt);
 
-        if (this.clutch > 0.5 || this.gear === 0) {
-            // Neutral/Clutch In
-            const flywheelMass = 0.3; 
-            const internalFriction = this.rpm * 0.05;
-            const rpmDelta = (engineTorque - internalFriction) / flywheelMass * dt;
-            
-            if (this.gas === 0) this.rpm -= 4000 * dt; 
-            else this.rpm += rpmDelta * 5; // Revs fast in neutral
-
-            const brakeEffect = this.brake * 15000 * this.parachuteBrake;
-            const decel = (airRes + rollRes + brakeEffect) / this.weight;
-            this.speed -= decel * dt;
+            const brakeForce = this.brake * 12000;
+            const decel = (dragForce + rollForce + brakeForce + parachuteForce) / this.weight;
+            this.speed = Math.max(0, this.speed - decel * dt);
+            this.wheelSlip = 0;
         } else {
-            // In Gear
-            const wheelTorque = engineTorque * totalRatio;
-            
-            // Wheel Spin Logic
-            const maxTraction = this.weight * 9.81 * this.grip * 0.7; // Traction limit
-            const wheelForce = wheelTorque / this.wheelRadius;
-            
-            let effectiveForce = wheelForce;
-            if (wheelForce > maxTraction) {
-                // Burnout / Spin
-                effectiveForce = maxTraction * 0.8; // Lose efficiency when spinning
-                this.rpm += 2000 * dt; // Revs spike
-                if(this.speed < 10) game.createSmoke(this, 3); // More smoke on launch
+            const ratio = this.gearRatios[this.gear] * this.finalDrive;
+            const engineForce = this.getEngineForce();
+            const maxTraction = this.weight * G * this.grip * 0.7;
+            let effectiveForce = engineForce;
+            if (engineForce >= maxTraction * 0.95) {
+                effectiveForce = maxTraction * 0.75;
+                this.wheelSlip = 1.0;
+                if (this.speed < 15 && this.gas > 0.5) game.createSmoke(this, 2, 0);
+            } else {
+                this.wheelSlip = 0;
             }
 
-            const brakeForce = this.brake * 12000 * this.parachuteBrake;
-            const netForce = effectiveForce - airRes - rollRes - brakeForce;
-            
+            const brakeForce = this.brake * 14000;
+            const netForce = effectiveForce - dragForce - rollForce - brakeForce - parachuteForce;
             const accel = netForce / this.weight;
-            this.speed += accel * dt;
+            this.speed = Math.max(0, this.speed + accel * dt);
 
-            // Engine braking / Matching road speed
-            const wheelRadS = this.speed / this.wheelRadius;
-            const targetRpm = (wheelRadS * totalRatio * 60) / (2 * Math.PI);
-            
-            if (wheelForce <= maxTraction) {
-                // Locked connection
-                this.rpm = (this.rpm * 0.8) + (targetRpm * 0.2);
+            const wheelRads = this.speed / WHEEL_RADIUS;
+            const targetRpm = wheelRads * ratio * 30 / Math.PI;
+            this.rpm += (targetRpm - this.rpm) * Math.min(1, 12 * dt);
+
+            if (this.rpm < 1000) {
+                this.rpm = 1000;
+                if (this.speed < 0.5 && this.gas < 0.1) this.speed = 0;
             }
-            
-            if (this.rpm < this.idleRpm) {
-                 this.rpm = this.idleRpm;
-                 if (this.speed < 1 && this.gas === 0) this.speed = 0;
+
+            if (this.gas < 0.05 && this.speed > 1) {
+                this.speed = Math.max(0, this.speed - (this.rpm / this.redline) * 800 / this.weight * dt);
             }
         }
-
-        if (this.speed < 0) this.speed = 0;
-        if (this.rpm < this.idleRpm) this.rpm = this.idleRpm;
 
         this.x += this.speed * dt;
 
-        // Visual Shake
-        if (this.speed > 50) {
-            this.shakeX = (Math.random()-0.5) * (this.speed/50);
-            this.shakeY = (Math.random()-0.5) * (this.speed/50);
-        } else {
-            this.shakeX = 0; this.shakeY = 0;
+        const targetSquat = (this.gas > 0.5 && this.gear > 0 && this.rpm < this.redline) ? -2.5 : 0;
+        this.squat += (targetSquat - this.squat) * Math.min(1, 8 * dt);
+
+        if (!this.finished && this.x >= game.raceDistance) {
+            this.finished = true;
+            this.finishTime = game.raceTimer;
+            this.trapSpeed = this.speed;
         }
     }
 
     shiftUp() {
-        if (this.gear < this.gearRatios.length - 1) {
-            this.gear++;
-            game.showNotification(`GEAR ${this.gear}`);
-            game.createBackfire(this);
-            game.screenShake = 5;
+        if (this.shiftTimer > 0) return;
+        if (this.gear >= this.gearRatios.length - 1) return;
+        this.gear++;
+        this.shiftTimer = 0.15;
+        const ratioNew = this.gearRatios[this.gear] * this.finalDrive;
+        const wheelRads = this.speed / WHEEL_RADIUS;
+        const targetRpm = wheelRads * ratioNew * 30 / Math.PI;
+        this.rpm = Math.max(1000, targetRpm * 0.92);
+        game.createBackfire(this);
+        game.screenShake = 3;
+        if (this.rpm >= this.redline * 0.88 && this.rpm <= this.redline * 0.98) {
+            game.showNotification('PERFECT SHIFT!');
+        } else if (this.rpm > this.redline * 0.70) {
+            game.showNotification('GOOD SHIFT');
+        } else {
+            game.showNotification('EARLY SHIFT');
         }
     }
-    
+
     shiftDown() {
-        if (this.gear > 0) {
-            this.gear--;
-            game.showNotification(`GEAR ${this.gear}`);
-        }
+        if (this.shiftTimer > 0) return;
+        if (this.gear <= 0) return;
+        this.gear--;
+        this.shiftTimer = 0.12;
     }
 }
 
-/* =========================================
-   GAME ENGINE
-   ========================================= */
+/* ═══════════════════════════════════════════════════════════════
+   PARTICLE
+   ═══════════════════════════════════════════════════════════════ */
+class Particle {
+    constructor(x, y, type, lane) {
+        this.x = x; this.y = y; this.type = type; this.lane = lane;
+        this.life = 1.0; this.dead = false;
+        if (type === 'smoke') {
+            this.vx = -(0.5 + Math.random() * 1.2);
+            this.vy = -(0.5 + Math.random() * 1.0);
+            this.size = Math.random() * 5 + 3;
+            this.decay = 0.04 + Math.random() * 0.015;
+            this.grow = 0.22;
+        } else {
+            this.vx = -(2.0 + Math.random() * 2.5);
+            this.vy = -(0.2 + Math.random() * 0.6);
+            this.size = Math.random() * 3 + 2;
+            this.decay = 0.10;
+            this.grow = 0.12;
+        }
+    }
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        this.life -= this.decay; this.size += this.grow;
+        if (this.life <= 0) this.dead = true;
+    }
+    draw(ctx, camX, laneY) {
+        const screenX = (this.x * game.METERS_TO_PX) - camX + 50;
+        const screenY = laneY + 42 + this.y;
+        if (this.type === 'smoke') {
+            ctx.fillStyle = 'rgba(180,180,180,' + (this.life * 0.7).toFixed(3) + ')';
+        } else {
+            ctx.fillStyle = 'rgba(255,' + Math.floor(this.life * 180) + ',0,' + this.life.toFixed(3) + ')';
+        }
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, this.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GAME
+   ═══════════════════════════════════════════════════════════════ */
 const game = {
-    canvas: document.getElementById('gameCanvas'),
-    ctx: null,
-    
-    // State
-    state: 'MENU',
-    menuState: 'MAIN',
-    cash: 2500,
-    ownedCars: [],
-    selectedCarIndex: 0,
-    
-    // Race State
-    raceDistance: 402, 
-    lights: 0,
-    lightTimer: 0,
-    raceStartTime: 0,
-    finished: false,
-    raceMode: 'quick',
-    tournamentRound: 1,
-    screenShake: 0,
+    canvas: null, ctx: null,
+    state: 'MENU', menuState: 'MAIN',
+    cash: 2500, ownedCars: [], selectedCarIndex: 0,
+    raceDistance: 402,
+    lights: 0, lightTimer: 0, raceStartTime: 0, raceTimer: 0,
+    raceState: 'STAGING',
+    raceMode: 'quick', tournamentRound: 1,
+    screenShake: 0, METERS_TO_PX: 22,
+    playerCar: null, opponentCar: null, particles: [],
+    accumulator: 0, lastTimestamp: 0,
+    paused: false,
+    // Background rotation — changes only when returning to menu after a quick race
+    backgrounds: ['night_city', 'sunset_highway', 'industrial', 'mountain_dusk', 'neon_tokyo'],
+    currentBackground: 0,
+    _pendingRotation: false,
+    SAVE_KEY: 'pixel_drag_legends_v3',
 
-    playerCar: null,
-    opponentCar: null,
-    particles: [],
-
-    // Assets
     carDefs: [
-        { name: "Civic '99", hp: 160, weight: 1100, grip: 1.0, redline: 8200, price: 0, color: '#fdd835', secondaryColor:'#333', type:'hatch', gearRatios: [0, 3.8, 2.4, 1.7, 1.3, 1.0] },
-        { name: "S14 Drift", hp: 280, weight: 1250, grip: 1.1, redline: 7500, price: 8000, color: '#9c27b0', secondaryColor:'#4a148c', type:'sedan', gearRatios: [0, 3.5, 2.2, 1.6, 1.2, 1.0] },
-        { name: "Mustang GT", hp: 420, weight: 1650, grip: 1.0, redline: 6500, price: 15000, color: '#b71c1c', secondaryColor:'#fff', type:'muscle', gearRatios: [0, 3.3, 2.0, 1.4, 1.1, 0.9] },
-        { name: "R34 GTR", hp: 550, weight: 1500, grip: 1.5, redline: 8500, price: 35000, color: '#0288d1', secondaryColor:'#01579b', type:'sedan', gearRatios: [0, 3.8, 2.5, 1.9, 1.5, 1.2, 0.9] },
-        { name: "Supra Mk4", hp: 600, weight: 1550, grip: 1.3, redline: 7800, price: 42000, color: '#e65100', secondaryColor:'#ff9800', type:'super', gearRatios: [0, 3.2, 2.1, 1.5, 1.1, 0.9, 0.7] },
-        { name: "Viper ACR", hp: 750, weight: 1480, grip: 1.6, redline: 6200, price: 65000, color: '#1b5e20', secondaryColor:'#000', type:'super', gearRatios: [0, 2.9, 1.9, 1.4, 1.1, 0.9, 0.7] },
-        { name: "Lambo Huracan", hp: 850, weight: 1400, grip: 1.8, redline: 9000, price: 120000, color: '#76ff03', secondaryColor:'#33691e', type:'super', gearRatios: [0, 3.5, 2.5, 1.9, 1.5, 1.2, 1.0, 0.8] },
-        { name: "Funny Car", hp: 2500, weight: 900, grip: 2.5, redline: 9500, price: 500000, color: '#311b92', secondaryColor:'#d50000', type:'dragster', gearRatios: [0, 4.0, 3.0, 2.2, 1.8, 1.5] }
+        { name: "Civic '99", hp: 160, weight: 1100, grip: 0.95, redline: 8200, price: 0,
+          color: '#fdd835', secondaryColor: '#333', type: 'hatch',
+          gearRatios: [0, 3.8, 2.4, 1.7, 1.3, 1.0], finalDrive: 4.0, dragArea: 0.72 },
+        { name: "S14 Drift", hp: 280, weight: 1250, grip: 1.0, redline: 7500, price: 8000,
+          color: '#9c27b0', secondaryColor: '#4a148c', type: 'sedan',
+          gearRatios: [0, 3.5, 2.2, 1.6, 1.2, 1.0], finalDrive: 3.9, dragArea: 0.75 },
+        { name: "Mustang GT", hp: 420, weight: 1650, grip: 1.0, redline: 6500, price: 15000,
+          color: '#b71c1c', secondaryColor: '#fff', type: 'muscle',
+          gearRatios: [0, 3.3, 2.0, 1.4, 1.1, 0.9], finalDrive: 3.55, dragArea: 0.82 },
+        { name: "R34 GTR", hp: 550, weight: 1500, grip: 1.35, redline: 8500, price: 35000,
+          color: '#0288d1', secondaryColor: '#01579b', type: 'sedan',
+          gearRatios: [0, 3.8, 2.5, 1.9, 1.5, 1.2, 0.9], finalDrive: 3.55, dragArea: 0.78 },
+        { name: "Supra Mk4", hp: 600, weight: 1550, grip: 1.2, redline: 7800, price: 42000,
+          color: '#e65100', secondaryColor: '#ff9800', type: 'super',
+          gearRatios: [0, 3.2, 2.1, 1.5, 1.1, 0.9, 0.7], finalDrive: 3.27, dragArea: 0.76 },
+        { name: "Viper ACR", hp: 750, weight: 1480, grip: 1.45, redline: 6200, price: 65000,
+          color: '#1b5e20', secondaryColor: '#000', type: 'super',
+          gearRatios: [0, 2.9, 1.9, 1.4, 1.1, 0.9, 0.7], finalDrive: 3.55, dragArea: 0.73 },
+        { name: "Lambo Huracan", hp: 850, weight: 1400, grip: 1.55, redline: 9000, price: 120000,
+          color: '#76ff03', secondaryColor: '#33691e', type: 'super',
+          gearRatios: [0, 3.5, 2.5, 1.9, 1.5, 1.2, 1.0, 0.8], finalDrive: 3.08, dragArea: 0.70 },
+        { name: "Funny Car", hp: 2500, weight: 900, grip: 2.8, redline: 9500, price: 500000,
+          color: '#311b92', secondaryColor: '#d50000', type: 'dragster',
+          gearRatios: [0, 4.0, 3.0, 2.2, 1.8, 1.5], finalDrive: 4.3, dragArea: 1.10 }
     ],
 
     init() {
+        this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
         this.resize();
         window.addEventListener('resize', () => this.resize());
-        
-        // Start with Civic
-        const starter = new Car(JSON.parse(JSON.stringify(this.carDefs[0])));
-        this.ownedCars.push(starter);
-        this.playerCar = starter;
-        
+        this.loadGame();
+        if (this.ownedCars.length === 0) {
+            this.ownedCars.push(new Car(this.carDefs[0]));
+            this.selectedCarIndex = 0;
+        }
+        this.playerCar = this.ownedCars[this.selectedCarIndex];
         this.setupInput();
         this.updateMenuUI();
-        this.loop();
+        this.lastTimestamp = performance.now();
+        this.loop(this.lastTimestamp);
     },
 
     resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        this.canvas.width = window.innerWidth * dpr;
+        this.canvas.height = window.innerHeight * dpr;
+        this.canvas.style.width = window.innerWidth + 'px';
+        this.canvas.style.height = window.innerHeight + 'px';
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.ctx.imageSmoothingEnabled = false;
     },
 
-    createSmoke(car, amount=1) {
-        for(let i=0; i<amount; i++)
-            this.particles.push(new Particle(car.x - 1, 0.5, 'smoke')); 
+    saveGame() {
+        try {
+            const data = {
+                cash: this.cash,
+                selectedCarIndex: this.selectedCarIndex,
+                tournamentRound: this.tournamentRound,
+                bestET: this.bestET || null,
+                currentBackground: this.currentBackground,
+                ownedCars: this.ownedCars.map(car => ({
+                    name: car.name, color: car.color, secondaryColor: car.secondaryColor,
+                    price: car.price, type: car.type,
+                    baseHp: car.baseHp, baseRedline: car.baseRedline,
+                    baseGearRatios: car.baseGearRatios, baseFinalDrive: car.baseFinalDrive,
+                    baseWeight: car.baseWeight, baseGrip: car.baseGrip,
+                    baseDragArea: car.baseDragArea,
+                    upgrades: car.upgrades,
+                })),
+            };
+            localStorage.setItem(this.SAVE_KEY, JSON.stringify(data));
+            this.flashSave();
+        } catch (e) { console.warn('Save failed:', e); }
     },
 
-    createBackfire(car) {
-        this.particles.push(new Particle(car.x - 2, 0.5, 'fire'));
+    loadGame() {
+        try {
+            const raw = localStorage.getItem(this.SAVE_KEY);
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            this.cash = data.cash ?? 2500;
+            this.tournamentRound = data.tournamentRound ?? 1;
+            this.bestET = data.bestET ?? null;
+            this.currentBackground = data.currentBackground ?? 0;
+            if (this.currentBackground >= this.backgrounds.length) this.currentBackground = 0;
+            this.ownedCars = (data.ownedCars || []).map(cd => {
+                const def = {
+                    name: cd.name, hp: cd.baseHp, weight: cd.baseWeight,
+                    grip: cd.baseGrip, redline: cd.baseRedline, price: cd.price,
+                    color: cd.color, secondaryColor: cd.secondaryColor, type: cd.type,
+                    gearRatios: cd.baseGearRatios, finalDrive: cd.baseFinalDrive,
+                    dragArea: cd.baseDragArea,
+                };
+                const car = new Car(def);
+                car.upgrades = cd.upgrades || car.upgrades;
+                car.applyUpgrades();
+                return car;
+            });
+            this.selectedCarIndex = Math.min(data.selectedCarIndex ?? 0, this.ownedCars.length - 1);
+        } catch (e) { console.warn('Load failed:', e); }
     },
 
-    // --- MOCK AI FUNCTIONS (Replaces missing API) ---
-    getCarReview() {
-        const out = document.getElementById('gemini-review-output');
-        const car = this.previewCar || this.playerCar;
-        out.style.display = 'block';
-        out.innerHTML = `<span class="typing">AI Mechanic is inspecting ${car.name}</span>`;
-        
-        // Mock response generation based on stats
-        setTimeout(() => {
-            let verdict = "";
-            if (car.hp < 200) verdict = "It's a grocery getter, but great for learning shift points. Very reliable.";
-            else if (car.hp < 500) verdict = "Solid street performance. Good torque, but watch the wheel spin in 1st gear.";
-            else if (car.hp < 1000) verdict = "Serious machine. You'll need slick tires to handle this power.";
-            else verdict = "Absolute monster. Not street legal. Prepare for neck injuries.";
-            
-            const txt = `<strong>AI ANALYSIS REPORT:</strong><br><br>
-            • <strong>Power:</strong> ${car.hp} HP (Stage ${car.upgrades.engine})<br>
-            • <strong>Weight:</strong> ${car.weight} KG<br>
-            • <strong>Drag Coeff:</strong> ${car.airResFactor.toFixed(2)}<br><br>
-            <strong>Mechanic's Verdict:</strong> ${verdict}`;
-            
-            out.innerHTML = txt;
-        }, 1500);
-    },
-
-    getRaceReport() {
-        const out = document.getElementById('gemini-report-output');
-        out.style.display = 'block';
-        out.innerHTML = `<span class="typing">Analyzing Telemetry Data</span>`;
-        
-        setTimeout(() => {
-            const res = this.raceResults;
-            let advice = "";
-            if (res.playerReaction > 0.5) advice = "Your reaction time was slow. Try to anticipate the green light.";
-            else if (res.playerTime > 15) advice = "You're shifting too early. Let the RPM build up closer to redline.";
-            else if (!res.won) advice = "You need more horsepower or shorter gear ratios to beat this opponent.";
-            else advice = "Perfect run. Your shift points were spot on.";
-
-            const txt = `<strong>RACE DEBRIEF:</strong><br><br>
-            • <strong>Reaction:</strong> ${res.playerReaction.toFixed(3)}s<br>
-            • <strong>ET:</strong> ${res.playerTime.toFixed(3)}s<br>
-            • <strong>Outcome:</strong> ${res.won ? "VICTORY" : "LOSS"}<br><br>
-            <strong>Coach's Tip:</strong> ${advice}`;
-            
-            out.innerHTML = txt;
-        }, 1500);
+    flashSave() {
+        const el = document.getElementById('save-indicator');
+        if (el) {
+            el.style.opacity = 1;
+            clearTimeout(this._saveTimeout);
+            this._saveTimeout = setTimeout(() => el.style.opacity = 0, 1200);
+        }
     },
 
     setupInput() {
         const handle = (action, val) => {
-            if (this.state === 'RACE') {
-                if (action === 'gas') {
-                    this.playerCar.gas = val;
-                    const el = document.getElementById('btn-gas');
-                    val ? el.classList.add('active') : el.classList.remove('active');
-                }
-                if (action === 'brake') {
-                    this.playerCar.brake = val;
-                    const el = document.getElementById('btn-brake');
-                    val ? el.classList.add('active') : el.classList.remove('active');
-                }
-                if (action === 'clutch') {
-                    this.playerCar.clutch = val;
-                    const el = document.getElementById('btn-clutch');
-                    val ? el.classList.add('active') : el.classList.remove('active');
+            if (this.state !== 'RACE' || this.paused) return;
+            const car = this.playerCar;
+            if (action === 'gas') {
+                car.gas = val;
+                this._toggleBtn('btn-gas', val);
+                if (val && this.raceState === 'RUNNING' && !car.launched) {
+                    car.launched = true;
+                    if (car.reactionRecorded === 0) {
+                        car.reactionTime = this.raceTimer;
+                        car.reactionRecorded = 1;
+                        const rd = document.getElementById('reaction-display');
+                        if (rd) rd.innerText = 'RT: ' + car.reactionTime.toFixed(3) + 's';
+                    }
                 }
             }
+            if (action === 'brake') { car.brake = val; this._toggleBtn('btn-brake', val); }
+            if (action === 'clutch') { car.clutch = val; this._toggleBtn('btn-clutch', val); }
         };
 
         window.addEventListener('keydown', e => {
-            if(e.repeat) return;
+            if (e.repeat) return;
             const k = e.key.toLowerCase();
+            if (k === 'escape') { this.togglePause(); return; }
+            if (this.paused) return;
             if (k === 'w' || k === 'arrowup') handle('gas', 1);
             if (k === 's' || k === 'arrowdown') handle('brake', 1);
-            if (k === ' ') handle('clutch', 1);
+            if (k === ' ') { e.preventDefault(); handle('clutch', 1); }
             if (k === 'd' || k === 'arrowright') {
-                if(this.state==='RACE') {
-                    this.playerCar.shiftUp();
-                    document.getElementById('btn-up').classList.add('active');
-                    setTimeout(()=>document.getElementById('btn-up').classList.remove('active'), 100);
-                }
+                if (this.state === 'RACE' && this.raceState === 'RUNNING') { this.playerCar.shiftUp(); this._pulseBtn('btn-up'); }
             }
             if (k === 'a' || k === 'arrowleft') {
-                if(this.state==='RACE') {
-                    this.playerCar.shiftDown();
-                    document.getElementById('btn-down').classList.add('active');
-                    setTimeout(()=>document.getElementById('btn-down').classList.remove('active'), 100);
-                }
+                if (this.state === 'RACE' && this.raceState === 'RUNNING') { this.playerCar.shiftDown(); this._pulseBtn('btn-down'); }
             }
         });
 
         window.addEventListener('keyup', e => {
+            if (this.paused) return;
             const k = e.key.toLowerCase();
             if (k === 'w' || k === 'arrowup') handle('gas', 0);
             if (k === 's' || k === 'arrowdown') handle('brake', 0);
             if (k === ' ') handle('clutch', 0);
         });
 
-        // Touch
         const bind = (id, action) => {
             const el = document.getElementById(id);
-            if(el) {
-                el.addEventListener('touchstart', (e)=>{e.preventDefault(); handle(action,1)});
-                el.addEventListener('touchend', (e)=>{e.preventDefault(); handle(action,0)});
-                el.addEventListener('mousedown', (e)=>{e.preventDefault(); handle(action,1)});
-                el.addEventListener('mouseup', (e)=>{e.preventDefault(); handle(action,0)});
-            }
-        }
+            if (!el) return;
+            const down = e => { e.preventDefault(); handle(action, 1); };
+            const up = e => { e.preventDefault(); handle(action, 0); };
+            el.addEventListener('touchstart', down, { passive: false });
+            el.addEventListener('touchend', up, { passive: false });
+            el.addEventListener('touchcancel', up, { passive: false });
+            el.addEventListener('mousedown', down);
+            el.addEventListener('mouseup', up);
+            el.addEventListener('mouseleave', up);
+        };
         bind('btn-gas', 'gas');
         bind('btn-brake', 'brake');
         bind('btn-clutch', 'clutch');
-        
-        document.getElementById('btn-up').onclick = () => this.playerCar.shiftUp();
-        document.getElementById('btn-down').onclick = () => this.playerCar.shiftDown();
+
+        const upBtn = document.getElementById('btn-up');
+        const downBtn = document.getElementById('btn-down');
+        if (upBtn) {
+            upBtn.addEventListener('touchstart', e => { e.preventDefault(); if (!this.paused && this.raceState === 'RUNNING') this.playerCar.shiftUp(); this._pulseBtn('btn-up'); }, { passive: false });
+            upBtn.addEventListener('mousedown', e => { e.preventDefault(); if (!this.paused && this.raceState === 'RUNNING') this.playerCar.shiftUp(); this._pulseBtn('btn-up'); });
+        }
+        if (downBtn) {
+            downBtn.addEventListener('touchstart', e => { e.preventDefault(); if (!this.paused && this.raceState === 'RUNNING') this.playerCar.shiftDown(); this._pulseBtn('btn-down'); }, { passive: false });
+            downBtn.addEventListener('mousedown', e => { e.preventDefault(); if (!this.paused && this.raceState === 'RUNNING') this.playerCar.shiftDown(); this._pulseBtn('btn-down'); });
+        }
     },
 
-    loop() {
-        if (this.state === 'RACE') {
-            this.updateRace();
-        }
-        if (this.screenShake > 0) this.screenShake *= 0.9;
-        this.draw();
-        requestAnimationFrame(() => this.loop());
+    _toggleBtn(id, on) {
+        const el = document.getElementById(id);
+        if (el) on ? el.classList.add('active') : el.classList.remove('active');
     },
 
-    updateRace() {
-        const dt = 0.016;
-        
-        this.playerCar.update(dt);
-        if (this.playerCar.gas > 0 && this.playerCar.gear > 0 && this.playerCar.rpm > this.playerCar.redline-500) {
-             this.createSmoke(this.playerCar, 1); // High RPM smoke
-        }
+    _pulseBtn(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.add('active');
+        setTimeout(() => el.classList.remove('active'), 100);
+    },
 
-        // Opponent Logic
-        if (this.lights < 4) {
-            this.opponentCar.clutch = 1;
-            this.opponentCar.gear = 1;
-            this.opponentCar.gas = (Date.now() % 800 < 300) ? 1 : 0; // Revving at line
+    togglePause() {
+        if (this.state !== 'RACE') return;
+        this.paused = !this.paused;
+        const menu = document.getElementById('pause-menu');
+        if (this.paused) {
+            menu.classList.remove('hidden');
+            this.playerCar.gas = 0;
+            this.playerCar.brake = 0;
+            this.playerCar.clutch = 0;
+            this._toggleBtn('btn-gas', false);
+            this._toggleBtn('btn-brake', false);
+            this._toggleBtn('btn-clutch', false);
         } else {
-            const runTime = (Date.now() - this.raceStartTime) / 1000;
-            if (runTime > this.opponentCar.reactionTime) {
-                this.opponentCar.clutch = 0;
-                this.opponentCar.gas = 1;
-                // Shift Logic
-                const shiftPoint = this.opponentCar.redline - 200;
-                if (this.opponentCar.rpm > shiftPoint && this.opponentCar.gear < this.opponentCar.gearRatios.length - 1) {
-                    this.opponentCar.gear++;
-                    this.createBackfire(this.opponentCar);
-                }
-            }
-        }
-        this.opponentCar.update(dt);
-
-        // Lights Logic
-        if (this.lights < 4) {
-            if (Date.now() - this.lightTimer > 1000) {
-                this.lights++;
-                this.lightTimer = Date.now();
-                if (this.lights === 4) {
-                    this.raceStartTime = Date.now();
-                    this.showNotification("GO!");
-                }
-            }
-            // False Start
-            if (this.playerCar.speed > 0.1 && this.lights < 4) {
-                 this.finishRace(false, "FALSE START");
-            }
-        } else {
-            if (!this.finished) {
-                if (this.playerCar.x >= this.raceDistance) this.finishRace(true);
-                else if (this.opponentCar.x >= this.raceDistance) this.finishRace(false);
-            }
-        }
-        
-        if(this.lights===4 && !this.finished) {
-            document.getElementById('race-timer').innerText = ((Date.now()-this.raceStartTime)/1000).toFixed(2);
+            menu.classList.add('hidden');
         }
     },
-
-    finishRace(won, reason) {
-        if(this.finished) return; 
-        const raceEndTime = Date.now();
-        
-        let playerTime = reason === "FALSE START" ? 999 : ((raceEndTime - this.raceStartTime) / 1000);
-        let reactionTime = reason === "FALSE START" ? 999 : (this.raceStartTime - this.lightTimer) / 1000;
-        let prize = 0;
-
-        if (won) {
-            if (this.raceMode === 'quick') {
-                prize = 250 + Math.floor(Math.random()*100);
-            } else if (this.raceMode === 'tournament') {
-                prize = 1000 * this.tournamentRound;
-                if (this.tournamentRound < 8) this.tournamentRound++;
-                else { prize += 10000; this.tournamentRound=1; }
-            }
-        } else {
-            prize = 50; // Consolation
-        }
-
-        this.finished = true;
-        this.cash += prize;
-        this.raceResults = { playerTime, playerReaction: reactionTime, won, opponentName: this.opponentCar.name };
-        
-        setTimeout(() => {
-            this.state = 'RESULTS';
-            document.getElementById('ui-layer').classList.add('hidden');
-            document.getElementById('results-menu').classList.remove('hidden');
-            
-            document.getElementById('result-title').innerText = reason || (won ? "VICTORY" : "DEFEAT");
-            document.getElementById('result-title').style.color = won ? '#4caf50' : '#f44336';
-            document.getElementById('result-time').innerText = playerTime.toFixed(3) + 's';
-            document.getElementById('result-reaction').innerText = reactionTime.toFixed(3) + 's';
-            document.getElementById('result-prize').innerText = '$' + prize;
-        }, 1000);
+    resumeRace() {
+        this.paused = false;
+        document.getElementById('pause-menu').classList.add('hidden');
+    },
+    restartRace() {
+        this.paused = false;
+        document.getElementById('pause-menu').classList.add('hidden');
+        this.startRaceMode(this.raceMode);
+    },
+    quitToMenu() {
+        this.paused = false;
+        document.getElementById('pause-menu').classList.add('hidden');
+        this.returnToMenu();
     },
 
-    // --- DRAWING & VISUALS ---
+    loop(timestamp) {
+        requestAnimationFrame(t => this.loop(t));
+        const realDt = (timestamp - this.lastTimestamp) / 1000;
+        this.lastTimestamp = timestamp;
 
-    draw() {
-        const W = this.canvas.width;
-        const H = this.canvas.height;
-        const ctx = this.ctx;
-        
-        // Shake Offset
-        const sx = (Math.random()-0.5)*this.screenShake;
-        const sy = (Math.random()-0.5)*this.screenShake;
-
-        if (this.state !== 'RACE') {
-            // Garage BG
-            ctx.fillStyle = '#111';
-            ctx.fillRect(0,0,W,H);
-            
-            // Grid Floor
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 1;
-            // Pseudo 3D floor
-            for(let i=H/2; i<H; i+=20) {
-                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(W,i); ctx.stroke();
-            }
-            for(let i=0; i<W; i+=100) {
-                ctx.beginPath(); ctx.moveTo(i + (i-W/2), H); ctx.lineTo(i, H/2); ctx.stroke();
-            }
-            
-            // Spotlight
-            let carToDraw = null;
-            if (this.menuState === 'DEALER') carToDraw = this.previewCar;
-            else if (this.menuState === 'MAIN' || this.menuState === 'GARAGE' || this.menuState === 'SHOP') carToDraw = this.playerCar;
-            
-            if (carToDraw) {
-                // Glow
-                let grad = ctx.createRadialGradient(W/2, H/2+50, 10, W/2, H/2+50, 300);
-                grad.addColorStop(0, 'rgba(255,255,255,0.1)');
-                grad.addColorStop(1, 'rgba(0,0,0,0)');
-                ctx.fillStyle = grad;
-                ctx.fillRect(0,0,W,H);
-
-                const originalX = carToDraw.x;
-                carToDraw.x = 0; 
-                ctx.save();
-                ctx.translate(W/2 - 120, H/2 - 40);
-                ctx.scale(2.5, 2.5);
-                this.drawCar(ctx, carToDraw, 0, 0);
-                ctx.restore();
-                carToDraw.x = originalX;
-            }
+        if (this.paused) {
+            this.draw();
             return;
         }
 
-        ctx.save();
-        ctx.translate(sx, sy);
+        this.accumulator += Math.min(realDt, 0.1);
 
-        // Sky
-        let grad = ctx.createLinearGradient(0,0,0,H);
-        grad.addColorStop(0, '#021a35');
-        grad.addColorStop(1, '#0d47a1');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0,0,W,H);
+        let steps = 0;
+        while (this.accumulator >= FIXED_DT && steps < MAX_SUBSTEPS) {
+            if (this.state === 'RACE') this.updateRace(FIXED_DT);
+            this.accumulator -= FIXED_DT;
+            steps++;
+        }
+        if (steps >= MAX_SUBSTEPS) this.accumulator = 0;
 
-        // Camera
-        const metersToPx = 20; 
-        let camX = this.playerCar.x * metersToPx - 150; 
-        if (camX < 0) camX = 0;
+        if (this.screenShake > 0.1) this.screenShake *= 0.88;
+        else this.screenShake = 0;
 
-        // Parallax City Background
-        ctx.fillStyle = '#000';
-        for(let i=0; i<W/20 + 2; i++) {
-            let h = 50 + Math.sin(i*132)*30 + Math.cos(i*23)*20;
-            let x = (i*40) - (camX * 0.1) % 40; 
-            // Wrap around logic simplified for canvas strip
-            let drawX = (i*40) - (camX * 0.1);
-            while(drawX < -50) drawX += W + 100;
-            // Actually, simplified scrolling:
-            drawX = ((i*40) - (camX * 0.1)) % (W+100);
-            if(drawX < 0) drawX += W+100;
-            
-            ctx.fillRect(drawX, H - 150 - h, 42, h);
-            // Windows
-            ctx.fillStyle = '#222';
-            if (Math.random() > 0.9) ctx.fillStyle = '#553';
-            ctx.fillRect(drawX + 10, H - 150 - h + 10, 5, 5);
-            ctx.fillStyle = '#000';
+        for (let i = 0; i < this.particles.length; i++) this.particles[i].update();
+        this.particles = this.particles.filter(p => !p.dead);
+
+        this.draw();
+    },
+
+    updateRace(dt) {
+        if (this.finished) return;
+
+        const p = this.playerCar;
+        const o = this.opponentCar;
+        const frozen = this.raceState !== 'RUNNING';
+
+        if (this.raceState === 'STAGING') {
+            if (p.gas > 0.1) {
+                this.raceState = 'COUNTDOWN';
+                this.lights = 0;
+                this.lightTimer = performance.now();
+            }
         }
 
-        const roadY = H - 150;
-        
-        // Road
-        ctx.fillStyle = '#1a1a1a'; // Asphalt
-        ctx.fillRect(0, roadY, W, 150); 
-        
-        // Horizon Line
+        if (this.raceState === 'COUNTDOWN') {
+            const elapsed = (performance.now() - this.lightTimer) / 1000;
+            this.lights = Math.min(4, Math.floor(elapsed));
+            o.clutch = 1; o.gear = 1;
+            o.gas = (Math.sin(performance.now() / 150) > 0) ? 1 : 0;
+            o.rpm = 1000 + (o.redline - 1000) * 0.5 * (0.5 + 0.5 * Math.sin(performance.now() / 200));
+            if (elapsed >= 4) {
+                this.raceState = 'RUNNING';
+                this.raceStartTime = performance.now();
+                this.raceTimer = 0;
+                this.showNotification('GO!');
+                this.lights = 4;
+            }
+        }
+
+        if (this.raceState === 'RUNNING') {
+            this.raceTimer = (performance.now() - this.raceStartTime) / 1000;
+            if (this.raceTimer > o.reactionTime && !o.launched) {
+                o.launched = true; o.clutch = 0; o.gas = 1; o.gear = 1;
+            }
+            if (o.launched) {
+                o.clutch = 0; o.gas = 1;
+                if (o.rpm > o.redline * 0.92 && o.gear < o.gearRatios.length - 1) o.shiftUp();
+                if (o.rpm > o.redline - 100) o.rpm = o.redline - 200;
+            }
+            if (p.finished && !this.finished) { this.finishRace(true); return; }
+            if (o.finished && !this.finished) { this.finishRace(false); return; }
+        }
+
+        p.update(dt);
+        o.update(dt);
+
+        // Freeze cars at start during STAGING / COUNTDOWN
+        if (frozen) {
+            p.x = 0; p.speed = 0; p.squat = 0;
+            o.x = 0; o.speed = 0; o.squat = 0;
+        }
+
+        if (p.wheelSlip > 0.4 && p.speed < 25 && p.gas > 0.5) this.createSmoke(p, 2, 0);
+        if (o.wheelSlip > 0.4 && o.speed < 25 && o.gas > 0.5) this.createSmoke(o, 1, 1);
+    },
+
+    finishRace(won, reason) {
+        if (this.finished) return;
+        this.finished = true;
+        this.raceState = 'FINISHED';
+
+        const p = this.playerCar, o = this.opponentCar;
+        p.speed = 0; p.gas = 0; p.brake = 1;
+        o.speed = 0; o.gas = 0;
+
+        let playerTime, reactionTime, prize = 0;
+        if (reason === 'FALSE START') {
+            playerTime = 999; reactionTime = 999; prize = 0;
+        } else {
+            playerTime = p.finishTime || this.raceTimer;
+            reactionTime = p.reactionTime || 0;
+            if (won) {
+                prize = this.raceMode === 'quick'
+                    ? 250 + Math.floor(Math.random() * 150)
+                    : 1000 * this.tournamentRound;
+                if (this.raceMode === 'tournament' && this.tournamentRound >= 8) {
+                    prize += 10000; this.tournamentRound = 1;
+                } else if (this.raceMode === 'tournament') {
+                    this.tournamentRound++;
+                }
+            } else {
+                prize = 50;
+            }
+        }
+
+        if (!reason && (!this.bestET || playerTime < this.bestET)) this.bestET = playerTime;
+        this.cash += prize;
+        this.raceResults = {
+            playerTime, playerReaction: reactionTime, won,
+            opponentName: o.name, trapSpeed: p.trapSpeed || p.speed, reason
+        };
+
+        // Mark background for rotation — applied on return to menu
+        if (this.raceMode === 'quick') {
+            this._pendingRotation = true;
+        }
+
+        this.saveGame();
+
+        setTimeout(() => {
+            this.state = 'RESULTS';
+            document.getElementById('ui-layer').classList.add('hidden');
+            document.getElementById('pause-btn').classList.add('hidden');
+            document.getElementById('results-menu').classList.remove('hidden');
+            const title = document.getElementById('result-title');
+            title.innerText = reason || (won ? 'VICTORY' : 'DEFEAT');
+            title.style.color = won ? '#4caf50' : '#f44336';
+            document.getElementById('result-time').innerText = playerTime.toFixed(3) + 's';
+            document.getElementById('result-reaction').innerText = reactionTime < 900 ? reactionTime.toFixed(3) + 's' : '—';
+            document.getElementById('result-trap').innerText = Math.round((p.trapSpeed || p.speed) * MPH_PER_MS) + ' mph';
+            document.getElementById('result-prize').innerText = '$' + prize;
+        }, 500);
+    },
+
+    draw() {
+        const W = window.innerWidth;
+        const H = window.innerHeight;
+        const ctx = this.ctx;
+        ctx.save();
+        if (this.screenShake > 0.1) {
+            ctx.translate((Math.random() - 0.5) * this.screenShake, (Math.random() - 0.5) * this.screenShake);
+        }
+        if (this.state !== 'RACE') {
+            this.drawGarageBg(W, H);
+        } else {
+            this.drawRaceScene(W, H);
+        }
+        ctx.restore();
+    },
+
+    drawGarageBg(W, H) {
+        const ctx = this.ctx;
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, W, H);
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.lineWidth = 1;
+        for (let i = H * 0.55; i < H; i += 18) {
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke();
+        }
+        for (let i = 0; i < W; i += 90) {
+            ctx.beginPath(); ctx.moveTo(i + (i - W / 2) * 0.5, H); ctx.lineTo(i, H * 0.55); ctx.stroke();
+        }
+        let carToDraw = null;
+        if (this.menuState === 'DEALER') carToDraw = this.previewCar;
+        else if (this.ownedCars.length > 0) carToDraw = this.playerCar;
+        if (carToDraw) {
+            const grad = ctx.createRadialGradient(W / 2, H * 0.6, 10, W / 2, H * 0.6, 280);
+            grad.addColorStop(0, 'rgba(255,255,255,0.12)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+            ctx.save();
+            ctx.translate(W / 2 - 140, H * 0.5 - 40);
+            ctx.scale(2.8, 2.8);
+            this.drawCar(ctx, carToDraw, 0, 0);
+            ctx.restore();
+        }
+    },
+
+    drawRaceScene(W, H) {
+        const ctx = this.ctx;
+        const p = this.playerCar;
+        const o = this.opponentCar;
+
+        const camX = Math.max(0, p.x * this.METERS_TO_PX - 180);
+
+        this.drawBackground(W, H, camX);
+
+        const roadY = Math.min(H - 160, H * 0.72);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(0, roadY, W, H - roadY);
         ctx.fillStyle = '#000';
         ctx.fillRect(0, roadY - 2, W, 2);
 
-        // Lane Markers
+        ctx.fillStyle = '#333';
+        const lineOffset = -(camX % 110);
+        for (let i = -110; i < W + 110; i += 110) {
+            ctx.fillRect(i + lineOffset, roadY + 75, 65, 4);
+        }
+
         ctx.fillStyle = '#444';
-        const lineOffset = -(camX % 100); 
-        for (let i = -100; i < W + 100; i += 100) {
-            ctx.fillRect(i + lineOffset, roadY + 68, 60, 4);
+        ctx.font = '9px "Press Start 2P"';
+        ctx.textAlign = 'left';
+        for (let m = 100; m <= 400; m += 100) {
+            const mx = (m * this.METERS_TO_PX) - camX;
+            if (mx > -60 && mx < W + 60) ctx.fillText(m + 'm', mx, roadY + 152);
         }
 
-        // Finish Line
-        const finishX = (this.raceDistance * metersToPx) - camX;
-        if (finishX > -100 && finishX < W + 100) {
-            ctx.fillStyle = '#fff';
-            for(let i=0; i<15; i++) {
-                ctx.fillRect(finishX, roadY + (i*10), 20, 10);
-                ctx.fillStyle = ctx.fillStyle === '#ffffff' ? '#000000' : '#ffffff';
-            }
-            ctx.fillStyle = '#ffffff'; 
-            for(let i=0; i<15; i++) {
-                ctx.fillRect(finishX+20, roadY + (i*10), 20, 10);
-                ctx.fillStyle = ctx.fillStyle === '#ffffff' ? '#000000' : '#ffffff';
-            }
-            // Gantry
-            ctx.fillStyle = '#444';
-            ctx.fillRect(finishX-10, roadY-100, 10, 100);
-            ctx.fillRect(finishX+50, roadY-100, 10, 100);
-            ctx.fillRect(finishX-10, roadY-100, 70, 20);
-            ctx.fillStyle = '#ffeb3b';
-            ctx.font = '10px Arial';
-            ctx.fillText("FINISH", finishX, roadY-90);
+        this.drawFinishLine(ctx, camX, roadY, W);
+        this.drawStartLights(ctx, camX, roadY, W);
+
+        const pX = (p.x * this.METERS_TO_PX) - camX + 40;
+        const oX = (o.x * this.METERS_TO_PX) - camX + 40;
+
+        const playerLaneY = roadY + 65;
+        const oppLaneY = roadY + 20;
+
+        // ── Draw particles FIRST so they sit behind / under the cars ──
+        for (let i = 0; i < this.particles.length; i++) {
+            const particle = this.particles[i];
+            particle.draw(ctx, camX, particle.lane === 0 ? playerLaneY : oppLaneY);
         }
 
-        // Distance Markers
-        ctx.fillStyle = '#555';
-        ctx.font = '10px "Press Start 2P"';
-        for (let m = 100; m <= 400; m+=100) {
-            const mx = (m * metersToPx) - camX;
-            if (mx > -50 && mx < W + 50) {
-                ctx.fillText(`${m}m`, mx, roadY + 145);
+        // ── Draw cars on top of particles ──
+        this.drawCar(ctx, o, oX, oppLaneY, 0.95);
+        this.drawCar(ctx, p, pX, playerLaneY, 1.1);
+
+        this.drawDashboard(W, H);
+        this.drawProgressBar(W, H, p, o);
+    },
+
+    drawBackground(W, H, camX) {
+        const bg = this.backgrounds[this.currentBackground];
+        if (bg === 'sunset_highway') return this.bgSunsetHighway(W, H, camX);
+        if (bg === 'industrial') return this.bgIndustrial(W, H, camX);
+        if (bg === 'mountain_dusk') return this.bgMountainDusk(W, H, camX);
+        if (bg === 'neon_tokyo') return this.bgNeonTokyo(W, H, camX);
+        return this.bgNightCity(W, H, camX);
+    },
+
+    _fillSky(ctx, W, H, topColor, midColor, botColor) {
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, topColor);
+        grad.addColorStop(0.5, midColor);
+        grad.addColorStop(1, botColor);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+    },
+
+    bgNightCity(W, H, camX) {
+        const ctx = this.ctx;
+        this._fillSky(ctx, W, H, '#021a35', '#0a2a50', '#0d47a1');
+        // Stars
+        ctx.fillStyle = '#fff';
+        for (let i = 0; i < 40; i++) {
+            const sx = (i * 137.5) % W;
+            const sy = (i * 67.3) % (H * 0.4);
+            const size = (i % 3 === 0) ? 2 : 1;
+            ctx.globalAlpha = 0.3 + Math.abs(Math.sin(i)) * 0.5;
+            ctx.fillRect(sx, sy, size, size);
+        }
+        ctx.globalAlpha = 1;
+        // Buildings
+        ctx.fillStyle = '#050a14';
+        const base = H * 0.72;
+        for (let i = 0; i < Math.floor(W / 45) + 4; i++) {
+            const seed = i * 137.5;
+            const h = 60 + Math.abs(Math.sin(seed)) * 90 + Math.abs(Math.cos(seed * 0.7)) * 40;
+            let bx = (i * 45) - (camX * 0.08);
+            bx = ((bx % (W + 200)) + W + 200) % (W + 200) - 100;
+            ctx.fillRect(bx, base - h, 40, h);
+            for (let wy = 0; wy < Math.floor(h / 22); wy++) {
+                for (let wx = 0; wx < 2; wx++) {
+                    ctx.fillStyle = Math.abs(Math.sin(seed + wy * 31 + wx * 17)) > 0.55 ? '#1a2a4a' : '#0a1525';
+                    ctx.fillRect(bx + 8 + wx * 16, base - h + 12 + wy * 22, 8, 10);
+                }
+            }
+            ctx.fillStyle = '#050a14';
+        }
+    },
+
+    bgSunsetHighway(W, H, camX) {
+        const ctx = this.ctx;
+        this._fillSky(ctx, W, H, '#2b1055', '#c96e4a', '#f7b267');
+        // Sun
+        const sunY = H * 0.55;
+        const sunX = W * 0.7 - (camX * 0.02) % (W * 1.5);
+        const sunGrad = ctx.createRadialGradient(sunX, sunY, 5, sunX, sunY, 90);
+        sunGrad.addColorStop(0, '#fff2a8');
+        sunGrad.addColorStop(0.4, '#ffb347');
+        sunGrad.addColorStop(1, 'rgba(255,100,50,0)');
+        ctx.fillStyle = sunGrad;
+        ctx.fillRect(0, 0, W, H);
+        // Distant hills
+        ctx.fillStyle = '#1a0a2a';
+        for (let i = 0; i < Math.floor(W / 80) + 3; i++) {
+            const seed = i * 91.3;
+            const h = 40 + Math.abs(Math.sin(seed)) * 40;
+            let bx = (i * 80) - (camX * 0.05);
+            bx = ((bx % (W + 300)) + W + 300) % (W + 300) - 150;
+            ctx.beginPath();
+            ctx.moveTo(bx, H * 0.72);
+            ctx.lineTo(bx + 40, H * 0.72 - h);
+            ctx.lineTo(bx + 80, H * 0.72);
+            ctx.closePath();
+            ctx.fill();
+        }
+        // Palm silhouettes
+        ctx.fillStyle = '#0d0418';
+        for (let i = 0; i < Math.floor(W / 180) + 2; i++) {
+            let px = (i * 180 + 50) - (camX * 0.12);
+            px = ((px % (W + 400)) + W + 400) % (W + 400) - 200;
+            const baseY = H * 0.72;
+            ctx.fillRect(px, baseY - 70, 4, 70);
+            for (let a = 0; a < 5; a++) {
+                const angle = -Math.PI / 2 + (a - 2) * 0.5;
+                ctx.save();
+                ctx.translate(px + 2, baseY - 70);
+                ctx.rotate(angle);
+                ctx.fillRect(0, -18, 3, 18);
+                ctx.restore();
             }
         }
+    },
 
-        // Start Lights Tree
-        const treeX = (0 * metersToPx) - camX + 150; 
-        if (treeX > -50 && treeX < W) {
-            ctx.fillStyle = '#111';
-            ctx.fillRect(treeX, roadY - 120, 15, 120);
-            const colors = ['#fbc02d', '#fbc02d', '#fbc02d', '#4caf50'];
-            for(let i=0; i<4; i++) {
-                ctx.fillStyle = '#221100';
-                if (i===3) ctx.fillStyle = '#001100';
-                if (this.lights > i) ctx.fillStyle = colors[i];
-                
+    bgIndustrial(W, H, camX) {
+        const ctx = this.ctx;
+        this._fillSky(ctx, W, H, '#1a1005', '#2a1a08', '#3a2a10');
+        // Moon
+        ctx.fillStyle = '#e8d8a0';
+        ctx.beginPath();
+        ctx.arc(W * 0.15, H * 0.18, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1a1005';
+        ctx.beginPath();
+        ctx.arc(W * 0.17, H * 0.16, 18, 0, Math.PI * 2);
+        ctx.fill();
+        // Factory silhouettes
+        const base = H * 0.72;
+        ctx.fillStyle = '#0a0500';
+        for (let i = 0; i < Math.floor(W / 100) + 3; i++) {
+            const seed = i * 53.7;
+            let bx = (i * 100) - (camX * 0.06);
+            bx = ((bx % (W + 300)) + W + 300) % (W + 300) - 150;
+            const w = 60 + Math.abs(Math.sin(seed)) * 40;
+            const h = 80 + Math.abs(Math.cos(seed)) * 60;
+            ctx.fillRect(bx, base - h, w, h);
+            for (let s = 0; s < 2; s++) {
+                const sx = bx + 10 + s * (w - 30);
+                ctx.fillRect(sx, base - h - 40, 8, 40);
+                ctx.fillStyle = 'rgba(80,70,60,0.3)';
+                for (let p = 0; p < 3; p++) {
+                    ctx.beginPath();
+                    ctx.arc(sx + 4 + p * 5, base - h - 45 - p * 12, 8 + p * 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.fillStyle = '#0a0500';
+            }
+            for (let wy = 0; wy < 3; wy++) {
+                for (let wx = 0; wx < Math.floor(w / 20); wx++) {
+                    if (Math.abs(Math.sin(seed + wy * 13 + wx * 7)) > 0.5) {
+                        ctx.fillStyle = '#c9a050';
+                        ctx.fillRect(bx + 8 + wx * 20, base - h + 15 + wy * 25, 8, 12);
+                        ctx.fillStyle = '#0a0500';
+                    }
+                }
+            }
+        }
+    },
+
+    bgMountainDusk(W, H, camX) {
+        const ctx = this.ctx;
+        this._fillSky(ctx, W, H, '#0a0520', '#2a1a4a', '#6a3a7a');
+        ctx.fillStyle = '#fff';
+        for (let i = 0; i < 30; i++) {
+            const sx = (i * 173.3) % W;
+            const sy = (i * 47.1) % (H * 0.35);
+            ctx.globalAlpha = 0.4 + Math.abs(Math.sin(i * 1.3)) * 0.4;
+            ctx.fillRect(sx, sy, 2, 2);
+        }
+        ctx.globalAlpha = 1;
+        for (let layer = 0; layer < 2; layer++) {
+            const offset = layer * 60;
+            const speed = 0.04 + layer * 0.03;
+            const baseY = H * 0.72 - offset * 0.3;
+            ctx.fillStyle = layer === 0 ? '#2a1a3a' : '#0f0520';
+            for (let i = 0; i < Math.floor(W / 120) + 3; i++) {
+                const seed = i * 71.1 + layer * 100;
+                let bx = (i * 120) - (camX * speed);
+                bx = ((bx % (W + 400)) + W + 400) % (W + 400) - 200;
                 ctx.beginPath();
-                ctx.arc(treeX + 7, roadY - 100 + (i*25), 8, 0, Math.PI*2);
+                ctx.moveTo(bx - 40, baseY);
+                ctx.lineTo(bx, baseY - 70 - Math.abs(Math.sin(seed)) * 50);
+                ctx.lineTo(bx + 40, baseY - 30 - Math.abs(Math.cos(seed)) * 30);
+                ctx.lineTo(bx + 80, baseY);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+    },
+
+    // Neon Tokyo — toned down: fewer buildings, fewer windows, muted neon
+    bgNeonTokyo(W, H, camX) {
+        const ctx = this.ctx;
+        this._fillSky(ctx, W, H, '#05000d', '#12002a', '#1e003a');
+        const base = H * 0.72;
+        // Fewer, wider-spaced buildings
+        for (let i = 0; i < Math.floor(W / 65) + 3; i++) {
+            const seed = i * 189.7;
+            const h = 55 + Math.abs(Math.sin(seed)) * 80;
+            let bx = (i * 65) - (camX * 0.09);
+            bx = ((bx % (W + 300)) + W + 300) % (W + 300) - 150;
+            ctx.fillStyle = '#08001a';
+            ctx.fillRect(bx, base - h, 55, h);
+            // Only 1-2 muted neon signs per building
+            const neonColors = ['#c9407a', '#5fa8b8', '#b8923a', '#5ca87a'];
+            for (let ny = 0; ny < Math.floor(h / 45); ny++) {
+                const colorSeed = Math.abs(Math.sin(seed * 1.3 + ny * 5.1));
+                if (colorSeed > 0.55) {
+                    const color = neonColors[Math.floor(colorSeed * 100) % neonColors.length];
+                    ctx.fillStyle = color;
+                    ctx.globalAlpha = 0.35;
+                    ctx.fillRect(bx + 6, base - h + 12 + ny * 45, 18, 2);
+                    ctx.globalAlpha = 1;
+                }
+            }
+            // Dim windows — fewer lit
+            for (let wy = 0; wy < Math.floor(h / 20); wy++) {
+                for (let wx = 0; wx < 3; wx++) {
+                    if (Math.abs(Math.sin(seed + wy * 23 + wx * 13)) > 0.7) {
+                        ctx.fillStyle = '#1a2a4a';
+                        ctx.fillRect(bx + 6 + wx * 16, base - h + 12 + wy * 20, 8, 6);
+                    }
+                }
+            }
+        }
+    },
+
+    drawStartLights(ctx, camX, roadY, W) {
+        const treeX = -camX + 160;
+        if (treeX < -80 || treeX > W + 80) return;
+
+        const poleW = 22;
+        const poleTop = roadY - 160;
+        const poleBot = roadY - 5;
+        const poleH = poleBot - poleTop;
+
+        // Base plate
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(treeX - 4, poleBot, poleW + 8, 6);
+        ctx.fillStyle = '#111';
+        ctx.fillRect(treeX - 6, poleBot + 4, poleW + 12, 3);
+
+        // Pole
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillRect(treeX, poleTop, poleW, poleH);
+        ctx.fillStyle = '#4a4a4a';
+        ctx.fillRect(treeX + 2, poleTop, 4, poleH);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(treeX + poleW - 4, poleTop, 4, poleH);
+
+        // Two pre-stage bulbs at top
+        const topBulbsY = poleTop + 12;
+        for (let i = 0; i < 2; i++) {
+            const bx = treeX + poleW / 2 - 8 + i * 16;
+            ctx.fillStyle = '#0a0a0a';
+            ctx.beginPath();
+            ctx.arc(bx, topBulbsY, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#c8c8c8';
+            ctx.beginPath();
+            ctx.arc(bx, topBulbsY, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Main bulbs
+        const mainY = poleTop + 40;
+        const bulbSpacing = 26;
+        const bulbR = 10;
+
+        for (let i = 0; i < 4; i++) {
+            const by = mainY + i * bulbSpacing;
+            const bx = treeX + poleW / 2;
+
+            ctx.fillStyle = '#0a0a0a';
+            ctx.beginPath();
+            ctx.arc(bx, by, bulbR + 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#151515';
+            ctx.beginPath();
+            ctx.arc(bx, by, bulbR, 0, Math.PI * 2);
+            ctx.fill();
+
+            const isGreen = i === 3;
+            const isLit = this.lights > i;
+
+            if (isLit) {
+                const color = isGreen ? '#4caf50' : '#fbc02d';
+                const glowGrad = ctx.createRadialGradient(bx, by, 2, bx, by, bulbR * 2.5);
+                glowGrad.addColorStop(0, color);
+                glowGrad.addColorStop(0.4, color + '80');
+                glowGrad.addColorStop(1, color + '00');
+                ctx.fillStyle = glowGrad;
+                ctx.fillRect(bx - bulbR * 2.5, by - bulbR * 2.5, bulbR * 5, bulbR * 5);
+                ctx.fillStyle = isGreen ? '#66ff88' : '#ffe066';
+                ctx.beginPath();
+                ctx.arc(bx, by, bulbR - 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                ctx.beginPath();
+                ctx.arc(bx - 3, by - 3, 2, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.fillStyle = isGreen ? '#0d2a10' : '#2a1a00';
+                ctx.beginPath();
+                ctx.arc(bx, by, bulbR - 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.08)';
+                ctx.beginPath();
+                ctx.arc(bx - 3, by - 3, 2, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
 
-        // Render Cars
-        const pX = (this.playerCar.x * metersToPx) - camX + 50;
-        const oX = (this.opponentCar.x * metersToPx) - camX + 50;
-        
-        // Opponent
-        this.drawCar(ctx, this.opponentCar, oX, roadY + 10, 0.9);
-        // Player
-        this.drawCar(ctx, this.playerCar, pX, roadY + 50, 1.1);
+        // Side struts
+        ctx.strokeStyle = '#2a2a2a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(treeX - 2, poleTop + 20);
+        ctx.lineTo(treeX - 8, poleTop + 8);
+        ctx.moveTo(treeX + poleW + 2, poleTop + 20);
+        ctx.lineTo(treeX + poleW + 8, poleTop + 8);
+        ctx.stroke();
+    },
 
-        // Particles
-        this.particles.forEach((p, index) => {
-            p.draw(ctx, camX, roadY);
-            p.update();
-            if (p.life <= 0) this.particles.splice(index, 1);
-        });
+    drawFinishLine(ctx, camX, roadY, W) {
+        const fx = (this.raceDistance * this.METERS_TO_PX) - camX;
+        if (fx < -150 || fx > W + 150) return;
 
-        ctx.restore();
+        const roadH = 160;
+        const laneTop = roadY;
+        const squareSize = 14;
+        const cols = 3;
 
-        // HUD - Dashboard
-        this.drawDashboard(W, H);
+        for (let row = 0; row < Math.ceil(roadH / squareSize); row++) {
+            for (let col = 0; col < cols; col++) {
+                const on = ((row + col) % 2) === 0;
+                ctx.fillStyle = on ? '#ffffff' : '#000000';
+                ctx.fillRect(fx + col * squareSize, laneTop + row * squareSize, squareSize, squareSize);
+            }
+        }
+
+        // Left post
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillRect(fx - 14, roadY - 130, 12, roadH + 130);
+        ctx.fillStyle = '#5a5a5a';
+        ctx.fillRect(fx - 12, roadY - 130, 3, roadH + 130);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(fx - 5, roadY - 130, 3, roadH + 130);
+
+        // Right post
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillRect(fx + cols * squareSize + 2, roadY - 130, 12, roadH + 130);
+        ctx.fillStyle = '#5a5a5a';
+        ctx.fillRect(fx + cols * squareSize + 4, roadY - 130, 3, roadH + 130);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(fx + cols * squareSize + 11, roadY - 130, 3, roadH + 130);
+
+        // Top beam
+        const beamY = roadY - 130;
+        const beamH = 22;
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(fx - 14, beamY, cols * squareSize + 28, beamH);
+        ctx.strokeStyle = '#0a0a0a';
+        ctx.lineWidth = 1.5;
+        const totalW = cols * squareSize + 28;
+        const startX = fx - 14;
+        for (let i = 0; i < totalW; i += 12) {
+            ctx.beginPath();
+            ctx.moveTo(startX + i, beamY + 2);
+            ctx.lineTo(startX + i + 12, beamY + beamH - 2);
+            ctx.stroke();
+        }
+        ctx.fillStyle = '#000';
+        ctx.fillRect(fx - 14, beamY + beamH - 3, totalW, 3);
+
+        // Banner
+        const bannerW = cols * squareSize;
+        const bannerH = 26;
+        const bannerY = beamY + beamH + 4;
+        ctx.fillStyle = '#c62828';
+        ctx.fillRect(fx - 2, bannerY, bannerW + 4, bannerH);
+        ctx.strokeStyle = '#ffeb3b';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(fx - 2, bannerY, bannerW + 4, bannerH);
+        ctx.fillStyle = '#ffeb3b';
+        ctx.font = '8px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('FINISH', fx + bannerW / 2, bannerY + bannerH / 2 + 1);
+        ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'left';
+
+        // Flags
+        const flagSize = 14;
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                ctx.fillStyle = ((r + c) % 2) === 0 ? '#fff' : '#000';
+                ctx.fillRect(fx - 12 + c * (flagSize / 3), roadY - 160 + r * (flagSize / 3), flagSize / 3, flagSize / 3);
+            }
+        }
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                ctx.fillStyle = ((r + c) % 2) === 0 ? '#fff' : '#000';
+                ctx.fillRect(fx + cols * squareSize + 4 + c * (flagSize / 3), roadY - 160 + r * (flagSize / 3), flagSize / 3, flagSize / 3);
+            }
+        }
     },
 
     drawDashboard(W, H) {
-        const cx = W - 90;
-        const cy = H - 90;
-        const r = 70;
-
-        // Gauge BG
         const ctx = this.ctx;
+        const p = this.playerCar;
+
+        const r = Math.min(58, Math.max(38, W * 0.07));
+        const cx = W / 2;
+        const cy = H - r - 26;
+
         ctx.beginPath();
-        ctx.arc(cx, cy, r, Math.PI * 0.8, Math.PI * 2.2); 
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fill();
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = '#555';
+        ctx.arc(cx, cy, r + 6, Math.PI * 0.75, Math.PI * 2.25);
+        ctx.lineWidth = 12;
+        ctx.strokeStyle = 'rgba(0,0,0,0.75)';
         ctx.stroke();
 
-        // RPM Segments
-        for(let i=0; i<=10; i++) {
-            const ang = Math.PI*0.8 + (i/10)*(Math.PI*1.4);
-            const tx = cx + Math.cos(ang)*(r-10);
-            const ty = cy + Math.sin(ang)*(r-10);
-            
-            ctx.fillStyle = (i > 7) ? '#d32f2f' : '#fff';
-            ctx.font = '10px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(i, tx, ty);
+        for (let i = 0; i <= 10; i++) {
+            const a0 = Math.PI * 0.75 + (i / 10) * Math.PI * 1.5;
+            const a1 = Math.PI * 0.75 + ((i + 1) / 10) * Math.PI * 1.5;
+            const isRed = i >= 8;
+            const rpmThreshold = (i / 10) * p.redline;
+            const isLit = p.rpm >= rpmThreshold;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r + 6, a0 + 0.02, a1 - 0.02);
+            ctx.lineWidth = 10;
+            ctx.strokeStyle = isLit ? (isRed ? '#ff1744' : '#fff') : (isRed ? '#3a0a0a' : '#222');
+            ctx.stroke();
         }
 
-        // Needle
-        const rpmPct = Math.min(this.playerCar.rpm, 10000) / 10000;
-        const needleAng = Math.PI*0.8 + (rpmPct * Math.PI*1.4);
-        
-        ctx.strokeStyle = '#f44336';
-        ctx.lineWidth = 3;
+        const rpmPct = Math.min(1, p.rpm / p.redline);
+        const needleAng = Math.PI * 0.75 + rpmPct * Math.PI * 1.5;
+        ctx.strokeStyle = '#ff1744';
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + Math.cos(needleAng)*(r-5), cy + Math.sin(needleAng)*(r-5));
+        ctx.lineTo(cx + Math.cos(needleAng) * (r - 6), cy + Math.sin(needleAng) * (r - 6));
         ctx.stroke();
-        
-        // Center Pin
-        ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2); ctx.fillStyle='#333'; ctx.fill();
 
-        // Digital Speed
+        ctx.beginPath();
+        ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#333';
+        ctx.fill();
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
         ctx.fillStyle = '#fff';
-        ctx.font = '24px "Press Start 2P"';
+        ctx.font = Math.round(r * 0.32) + 'px "Press Start 2P"';
         ctx.textAlign = 'center';
-        
-        const mph = Math.floor(this.playerCar.speed * 2.23);
-        ctx.fillText(mph, cx, cy + 40);
-        ctx.font = '10px "Press Start 2P"';
-        ctx.fillStyle = '#aaa';
-        ctx.fillText("MPH", cx, cy + 55);
-        
-        // Gear Indicator
-        ctx.fillStyle = '#ffeb3b';
-        ctx.font = '30px "Press Start 2P"';
-        const gear = this.playerCar.gear === 0 ? 'N' : this.playerCar.gear;
-        ctx.fillText(gear, cx, cy - 30);
+        ctx.textBaseline = 'middle';
+        const mph = Math.floor(p.speed * MPH_PER_MS);
+        ctx.fillText(mph, cx, cy + r * 0.42);
+        ctx.font = Math.round(r * 0.14) + 'px "Press Start 2P"';
+        ctx.fillStyle = '#888';
+        ctx.fillText('MPH', cx, cy + r * 0.72);
+
+        ctx.font = Math.round(r * 0.5) + 'px "Press Start 2P"';
+        const gearText = p.gear === 0 ? 'N' : String(p.gear);
+        ctx.fillStyle = p.rpm > p.redline * 0.9 ? '#ff1744' : '#ffeb3b';
+        ctx.fillText(gearText, cx, cy - r * 0.42);
+
+        if (p.gear > 0 && p.rpm > p.redline * 0.88) {
+            const blink = Math.sin(performance.now() / 60) > 0;
+            if (blink) {
+                ctx.beginPath();
+                ctx.arc(cx, cy - r - 18, 8, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff1744';
+                ctx.shadowColor = '#ff1744';
+                ctx.shadowBlur = 18;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        // Starting guide text
+        if (this.raceState === 'STAGING') {
+            ctx.fillStyle = '#ffeb3b';
+            ctx.font = '13px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('REV ENGINE TO START', W / 2, H * 0.28);
+            ctx.font = '9px "Press Start 2P"';
+            ctx.fillStyle = '#888';
+            ctx.fillText('HOLD CLUTCH + GAS', W / 2, H * 0.28 + 22);
+        } else if (this.raceState === 'COUNTDOWN') {
+            ctx.fillStyle = '#4fc3f7';
+            ctx.font = '10px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('HOLD CLUTCH', W / 2, H * 0.28);
+            ctx.fillStyle = '#888';
+            ctx.font = '8px "Press Start 2P"';
+            ctx.fillText('SHIFT UP FOR 1ST GEAR', W / 2, H * 0.28 + 18);
+        }
     },
 
-    // Procedural Car Pixel Art
-    drawCar(ctx, car, x, y, scale) {
+    drawProgressBar(W, H, p, o) {
+        const ctx = this.ctx;
+        const barW = Math.min(W * 0.6, 420), barH = 8;
+        const bx = (W - barW) / 2, by = 22;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(bx - 2, by - 2, barW + 4, barH + 4);
+        ctx.fillStyle = '#222';
+        ctx.fillRect(bx, by, barW, barH);
+        const pPct = Math.min(1, p.x / this.raceDistance);
+        ctx.fillStyle = '#4fc3f7';
+        ctx.fillRect(bx, by, barW * pPct, barH / 2);
+        const oPct = Math.min(1, o.x / this.raceDistance);
+        ctx.fillStyle = '#ff7043';
+        ctx.fillRect(bx, by + barH / 2, barW * oPct, barH / 2);
+        ctx.font = '7px "Press Start 2P"';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#4fc3f7';
+        ctx.fillText('YOU', bx, by - 6);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#ff7043';
+        ctx.fillText('OPP', bx + barW, by - 6);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(bx + barW - 2, by - 4, 4, barH + 8);
+    },
+
+    /* ═══════════════════════════════════════════════════════════════
+       CAR SPRITES — redrawn with clean windshields, accurate shapes
+       ═══════════════════════════════════════════════════════════════ */
+    drawCar(ctx, car, x, y, scale = 1) {
         ctx.save();
-        // Squat rotation
-        const rot = car.squat * 0.05; 
         ctx.translate(x, y + car.squat);
-        ctx.rotate(-rot * 0.5 * (Math.PI/180));
         ctx.scale(scale, scale);
 
-        // Shadow
+        // Ground shadow
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(5, 38, 95, 8);
+        ctx.fillRect(6, 44, 96, 5);
 
-        // Base Body Color
-        ctx.fillStyle = car.color;
+        const c = car.color;
+        const s = car.secondaryColor;
+        const glass = '#1a2332';
+        const dark = '#0a0a0a';
+        const rim = car.upgrades.slicks ? '#e8c400' : '#7a7a7a';
 
         if (car.type === 'hatch') {
-            // Boxy shape
-            ctx.fillRect(0, 20, 95, 18); // Main chassis
-            ctx.fillRect(15, 5, 50, 15); // Cabin
-            // Windows
-            ctx.fillStyle = '#223';
-            ctx.fillRect(20, 8, 20, 10);
-            ctx.fillRect(45, 8, 15, 10);
-            // Spoiler
-            ctx.fillStyle = car.secondaryColor;
-            ctx.fillRect(5, 5, 5, 15);
-            ctx.fillRect(0, 5, 15, 3);
-        } 
+            // ── HATCHBACK (Civic) — tall cabin, rear roof extends back
+            // Lower body
+            ctx.fillStyle = c;
+            ctx.fillRect(2, 22, 96, 16);
+
+            // Cabin (trapezoid, roof extends far back for hatch shape)
+            ctx.beginPath();
+            ctx.moveTo(14, 22);   // bottom-left (rear)
+            ctx.lineTo(22, 8);    // top-left (rear roof)
+            ctx.lineTo(78, 8);    // top-right (front roof)
+            ctx.lineTo(86, 22);   // bottom-right (front bottom)
+            ctx.closePath();
+            ctx.fill();
+
+            // Glass (inset trapezoid — single window across)
+            ctx.fillStyle = glass;
+            ctx.beginPath();
+            ctx.moveTo(20, 21);
+            ctx.lineTo(25, 10);
+            ctx.lineTo(75, 10);
+            ctx.lineTo(81, 21);
+            ctx.closePath();
+            ctx.fill();
+
+            // B-pillar (body-color vertical bar mid-window)
+            ctx.fillStyle = c;
+            ctx.fillRect(48, 10, 4, 11);
+
+            // Rear spoiler
+            ctx.fillStyle = s;
+            ctx.fillRect(4, 12, 5, 10);
+            ctx.fillRect(-2, 10, 14, 3);
+
+            // Door lines
+            ctx.strokeStyle = s;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(44, 22); ctx.lineTo(44, 37);
+            ctx.moveTo(62, 22); ctx.lineTo(62, 35);
+            ctx.stroke();
+
+            // Side skirt
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(2, 36, 96, 3);
+
+            // Headlight + tail
+            ctx.fillStyle = '#fff7b0';
+            ctx.fillRect(94, 24, 4, 4);
+            ctx.fillStyle = '#ffb000';
+            ctx.fillRect(94, 30, 3, 3);
+            ctx.fillStyle = '#c62828';
+            ctx.fillRect(2, 24, 4, 5);
+        }
         else if (car.type === 'sedan') {
-            ctx.fillRect(0, 22, 100, 15);
-            ctx.beginPath(); ctx.moveTo(10,22); ctx.lineTo(25,8); ctx.lineTo(75,8); ctx.lineTo(90,22); ctx.fill();
-            // Windows
-            ctx.fillStyle = '#223';
-            ctx.beginPath(); ctx.moveTo(28,20); ctx.lineTo(32,10); ctx.lineTo(50,10); ctx.lineTo(50,20); ctx.fill();
-            ctx.beginPath(); ctx.moveTo(54,20); ctx.lineTo(54,10); ctx.lineTo(70,10); ctx.lineTo(78,20); ctx.fill();
-            // Spoiler
-            if(car.upgrades.aero) {
-                ctx.fillStyle = '#111';
-                ctx.fillRect(0, 15, 5, 10);
-                ctx.fillRect(-5, 15, 15, 2);
+            // ── SEDAN (S14, R34) — lower cabin, balanced
+            ctx.fillStyle = c;
+            ctx.fillRect(0, 22, 100, 16);
+
+            // Cabin (trapezoid, tapered)
+            ctx.beginPath();
+            ctx.moveTo(16, 22);
+            ctx.lineTo(30, 8);
+            ctx.lineTo(72, 8);
+            ctx.lineTo(88, 22);
+            ctx.closePath();
+            ctx.fill();
+
+            // Glass (inset — full window with B-pillar)
+            ctx.fillStyle = glass;
+            ctx.beginPath();
+            ctx.moveTo(22, 21);
+            ctx.lineTo(32, 10);
+            ctx.lineTo(70, 10);
+            ctx.lineTo(82, 21);
+            ctx.closePath();
+            ctx.fill();
+
+            // B-pillar
+            ctx.fillStyle = c;
+            ctx.fillRect(48, 10, 4, 11);
+
+            // Door lines
+            ctx.strokeStyle = s;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(44, 22); ctx.lineTo(44, 37);
+            ctx.moveTo(60, 22); ctx.lineTo(60, 37);
+            ctx.stroke();
+
+            // Side skirt
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(0, 36, 100, 3);
+
+            // Headlight + tail
+            ctx.fillStyle = '#fff7b0';
+            ctx.fillRect(96, 26, 4, 4);
+            ctx.fillStyle = '#c62828';
+            ctx.fillRect(0, 26, 4, 5);
+
+            // Aero wing
+            if (car.upgrades.aero) {
+                ctx.fillStyle = dark;
+                ctx.fillRect(2, 16, 5, 10);
+                ctx.fillRect(-4, 14, 16, 3);
             }
         }
         else if (car.type === 'muscle') {
-            // Long hood
-            ctx.fillRect(5, 20, 100, 18);
-            ctx.fillRect(15, 8, 45, 12);
-            // Stripe
-            ctx.fillStyle = car.secondaryColor;
-            ctx.fillRect(5, 28, 100, 4);
-            // Windows
-            ctx.fillStyle = '#223';
-            ctx.fillRect(20, 10, 35, 10);
-            // Blower
+            // ── MUSCLE (Mustang) — long hood, short deck
+            ctx.fillStyle = c;
+            ctx.fillRect(2, 22, 102, 16);
+
+            // Cabin (further back = longer hood)
+            ctx.beginPath();
+            ctx.moveTo(26, 22);
+            ctx.lineTo(38, 8);
+            ctx.lineTo(76, 8);
+            ctx.lineTo(84, 22);
+            ctx.closePath();
+            ctx.fill();
+
+            // Glass
+            ctx.fillStyle = glass;
+            ctx.beginPath();
+            ctx.moveTo(32, 21);
+            ctx.lineTo(40, 10);
+            ctx.lineTo(74, 10);
+            ctx.lineTo(80, 21);
+            ctx.closePath();
+            ctx.fill();
+
+            // B-pillar
+            ctx.fillStyle = c;
+            ctx.fillRect(54, 10, 4, 11);
+
+            // Racing stripe
+            ctx.fillStyle = s;
+            ctx.fillRect(2, 28, 102, 4);
+
+            // Door line
+            ctx.strokeStyle = s;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(50, 22); ctx.lineTo(50, 36);
+            ctx.stroke();
+
+            // Side skirt
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(2, 36, 102, 3);
+
+            // Headlight + tail
+            ctx.fillStyle = '#fff7b0';
+            ctx.fillRect(100, 24, 4, 4);
+            ctx.fillStyle = '#c62828';
+            ctx.fillRect(2, 24, 4, 6);
+
+            // Blower on hood (upgraded)
             if (car.upgrades.engine > 2) {
-                ctx.fillStyle = '#ccc';
-                ctx.fillRect(75, 15, 15, 5); // Supercharger
-                ctx.beginPath(); ctx.arc(80, 15, 4, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#b0b0b0';
+                ctx.fillRect(74, 15, 18, 7);
+                ctx.fillStyle = '#909090';
+                ctx.fillRect(77, 11, 4, 5);
+                ctx.fillRect(85, 11, 4, 5);
+                ctx.fillStyle = '#222';
+                ctx.fillRect(78, 18, 10, 3);
             }
         }
         else if (car.type === 'super') {
-            // Wedge
+            // ── SUPER (Lambo, Supra, Viper) — low wedge
+            // Main wedge
+            ctx.fillStyle = c;
             ctx.beginPath();
-            ctx.moveTo(0, 35);
-            ctx.lineTo(0, 20);
-            ctx.lineTo(30, 10);
-            ctx.lineTo(60, 10);
-            ctx.lineTo(100, 25);
-            ctx.lineTo(100, 35);
+            ctx.moveTo(0, 38);
+            ctx.lineTo(0, 22);
+            ctx.lineTo(22, 14);
+            ctx.lineTo(50, 10);
+            ctx.lineTo(74, 12);
+            ctx.lineTo(98, 22);
+            ctx.lineTo(100, 26);
+            ctx.lineTo(100, 38);
+            ctx.closePath();
             ctx.fill();
-            // Cabin
-            ctx.fillStyle = '#112';
-            ctx.beginPath(); ctx.moveTo(35,12); ctx.lineTo(58,12); ctx.lineTo(75,22); ctx.lineTo(25,22); ctx.fill();
-            // Wing
-            ctx.fillStyle = car.secondaryColor;
-            ctx.fillRect(0, 15, 5, 10);
-            ctx.fillRect(-5, 12, 20, 3);
+
+            // Glass (single sloped piece)
+            ctx.fillStyle = glass;
+            ctx.beginPath();
+            ctx.moveTo(30, 15);
+            ctx.lineTo(52, 12);
+            ctx.lineTo(68, 22);
+            ctx.lineTo(26, 22);
+            ctx.closePath();
+            ctx.fill();
+
+            // B-pillar (thin)
+            ctx.fillStyle = c;
+            ctx.fillRect(48, 14, 3, 9);
+
+            // Side vents
+            ctx.fillStyle = dark;
+            ctx.fillRect(24, 24, 10, 3);
+            ctx.fillRect(26, 29, 10, 3);
+
+            // Side skirt
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(0, 37, 100, 2);
+
+            // Headlight (sleek)
+            ctx.fillStyle = '#fff7b0';
+            ctx.beginPath();
+            ctx.moveTo(94, 22);
+            ctx.lineTo(99, 24);
+            ctx.lineTo(99, 28);
+            ctx.lineTo(92, 26);
+            ctx.closePath();
+            ctx.fill();
+
+            // Tail
+            ctx.fillStyle = '#c62828';
+            ctx.fillRect(0, 24, 5, 4);
+
+            // Rear wing
+            ctx.fillStyle = s;
+            ctx.fillRect(0, 12, 4, 12);
+            ctx.fillRect(-6, 10, 16, 3);
         }
         else if (car.type === 'dragster') {
-            // Long
-            ctx.fillRect(-10, 25, 120, 10);
-            ctx.fillStyle = car.secondaryColor;
-            ctx.fillRect(10, 15, 20, 10); // Cage
-            // Big spoiler
+            // ── FUNNY CAR — long low dragster
+            // Long body
+            ctx.fillStyle = c;
+            ctx.fillRect(-10, 24, 130, 14);
+
+            // Nose wedge
+            ctx.beginPath();
+            ctx.moveTo(105, 24);
+            ctx.lineTo(122, 28);
+            ctx.lineTo(122, 38);
+            ctx.lineTo(105, 38);
+            ctx.closePath();
+            ctx.fill();
+
+            // Cockpit cage
+            ctx.fillStyle = s;
+            ctx.beginPath();
+            ctx.moveTo(20, 24);
+            ctx.lineTo(24, 12);
+            ctx.lineTo(42, 12);
+            ctx.lineTo(48, 24);
+            ctx.closePath();
+            ctx.fill();
+
+            // Cockpit glass
+            ctx.fillStyle = glass;
+            ctx.fillRect(27, 14, 12, 8);
+
+            // Engine block
+            ctx.fillStyle = '#4a4a4a';
+            ctx.fillRect(50, 22, 40, 4);
+            ctx.fillStyle = '#666';
+            for (let i = 0; i < 4; i++) {
+                ctx.fillRect(54 + i * 8, 18, 3, 6);
+            }
+
+            // Side skirt
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(-10, 36, 130, 2);
+
+            // Huge rear wing
             ctx.fillStyle = '#ddd';
-            ctx.moveTo(-10, 25); ctx.lineTo(-20, 5); ctx.lineTo(-5, 5); ctx.lineTo(0, 25); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(-10, 24);
+            ctx.lineTo(-24, 2);
+            ctx.lineTo(-6, 2);
+            ctx.lineTo(0, 24);
+            ctx.closePath();
+            ctx.fill();
+
+            // Wing struts
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-18, 12); ctx.lineTo(-2, 12);
+            ctx.moveTo(-14, 6); ctx.lineTo(-2, 6);
+            ctx.stroke();
+
+            // Tail
+            ctx.fillStyle = '#c62828';
+            ctx.fillRect(-10, 26, 4, 5);
         }
 
-        // Wheels
+        // ═══ WHEELS ═══
         const rTire = car.upgrades.slicks ? 13 : 11;
-        const fTire = car.type === 'dragster' ? 7 : 11;
+        const fTire = car.type === 'dragster' ? 6 : (car.upgrades.slicks ? 12 : 10);
+        const wheelY_R = 36;
+        const wheelY_F = 38;
+        const wheelX_R = car.type === 'dragster' ? 10 : 22;
+        const wheelX_F = car.type === 'dragster' ? 100 : 82;
 
-        // Rear
-        ctx.fillStyle = '#111';
-        ctx.beginPath(); ctx.arc(20, 35, rTire, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(20, 35, rTire/2, 0, Math.PI*2); ctx.fill(); // Rim
-        
-        // Front
-        ctx.fillStyle = '#111';
-        ctx.beginPath(); ctx.arc(85, 38, fTire, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(85, 38, fTire/2, 0, Math.PI*2); ctx.fill(); // Rim
+        const drawWheel = (wx, wy, tr, rimRadius) => {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.beginPath(); ctx.arc(wx, wy, tr, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(wx, wy, tr - 0.5, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = rim;
+            ctx.beginPath(); ctx.arc(wx, wy, rimRadius, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#2a2a2a';
+            ctx.beginPath(); ctx.arc(wx, wy, rimRadius * 0.55, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#888';
+            ctx.beginPath(); ctx.arc(wx, wy, rimRadius * 0.25, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 5; i++) {
+                const a = (i / 5) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(wx + Math.cos(a) * rimRadius * 0.3, wy + Math.sin(a) * rimRadius * 0.3);
+                ctx.lineTo(wx + Math.cos(a) * rimRadius * 0.9, wy + Math.sin(a) * rimRadius * 0.9);
+                ctx.stroke();
+            }
+        };
 
-        // Lights
-        ctx.fillStyle = '#ffeb3b';
-        ctx.fillRect(95, 25, 5, 4); // Head
-        ctx.fillStyle = '#d50000';
-        ctx.fillRect(0, 25, 3, 4); // Tail
+        drawWheel(wheelX_R, wheelY_R, rTire, rTire * 0.55);
+        drawWheel(wheelX_F, wheelY_F, fTire, fTire * 0.55);
 
         // Parachute
         if (car.upgrades.parachute && car.speed < 10 && car.type !== 'hatch') {
-            ctx.fillStyle = '#bbb';
-            ctx.fillRect(-8, 22, 8, 8);
+            ctx.fillStyle = '#b0b0b0';
+            ctx.beginPath();
+            ctx.arc(-8, 26, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-8, 26); ctx.lineTo(-2, 28);
+            ctx.stroke();
         }
 
         ctx.restore();
+    },
+
+    createSmoke(car, amount = 1, lane = 0) {
+        for (let i = 0; i < amount; i++) {
+            this.particles.push(new Particle(car.x - 0.8, 0.5, 'smoke', lane));
+        }
+    },
+
+    createBackfire(car) {
+        this.particles.push(new Particle(car.x - 1.2, 0.3, 'fire', 0));
+    },
+
+    updateMenuUI() {
+        document.getElementById('menu-cash').innerText = this.cash;
+        document.getElementById('shop-cash').innerText = this.cash;
+        document.getElementById('dealer-cash').innerText = this.cash;
+        const rec = document.getElementById('menu-record');
+        if (rec) rec.innerText = this.bestET ? 'BEST ET: ' + this.bestET.toFixed(3) + 's' : '';
+    },
+
+    showNotification(text) {
+        const n = document.getElementById('notification');
+        if (!n) return;
+        n.innerText = text;
+        n.style.opacity = 1;
+        n.style.top = '18%';
+        clearTimeout(this._notifTimeout);
+        this._notifTimeout = setTimeout(() => { n.style.opacity = 0; n.style.top = '25%'; }, 900);
     },
 
     startRaceMode(mode) {
         this.raceMode = mode;
         this.state = 'RACE';
         this.menuState = 'RACE';
-        
+        this.raceState = 'STAGING';
+        this.finished = false;
+        this.paused = false;
+        this.particles = [];
+
         document.querySelectorAll('.menu-overlay').forEach(el => el.classList.add('hidden'));
         document.getElementById('ui-layer').classList.remove('hidden');
         document.getElementById('hud').classList.remove('hidden');
         document.getElementById('controls').classList.remove('hidden');
-        
-        let oppIndex;
-        let scaleFactor = 1.0;
+        document.getElementById('pause-btn').classList.remove('hidden');
 
+        let oppIndex, scaleFactor = 1.0;
         if (mode === 'quick') {
-            // Random opponent based on player HP
-            const tier = Math.floor(this.playerCar.hp / 200);
-            oppIndex = Math.min(this.carDefs.length-1, Math.max(0, tier + Math.floor(Math.random()*2 - 1)));
-            scaleFactor = 0.9 + Math.random()*0.2;
-        } else if (mode === 'tournament') {
+            const pPerf = this.playerCar.hp / this.playerCar.weight;
+            const tier = Math.floor(pPerf / 0.25);
+            oppIndex = Math.min(this.carDefs.length - 1, Math.max(0, tier + Math.floor(Math.random() * 3 - 1)));
+            scaleFactor = 0.9 + Math.random() * 0.25;
+        } else {
             oppIndex = Math.min(this.carDefs.length - 1, this.tournamentRound - 1);
-            scaleFactor = 1.0 + (this.tournamentRound * 0.1); 
+            scaleFactor = 0.92 + this.tournamentRound * 0.04;
         }
 
         const def = this.carDefs[oppIndex];
         this.opponentCar = new Car(def);
         this.opponentCar.hp = Math.floor(def.hp * scaleFactor);
-        this.opponentCar.reactionTime = Math.max(0.1, 0.6 - (scaleFactor * 0.2)); // Harder opps react faster
+        this.opponentCar.reactionTime = Math.max(0.08, 0.65 - scaleFactor * 0.22);
 
         document.getElementById('opp-name').innerText = this.opponentCar.name;
         document.getElementById('tournament-round').innerText = this.tournamentRound;
+        document.getElementById('reaction-display').innerText = '';
+        document.getElementById('race-timer').innerText = '0.000';
 
-        // Reset Player
-        this.playerCar.x = 0;
-        this.playerCar.speed = 0;
-        this.playerCar.rpm = 1000;
-        this.playerCar.gear = 0;
-        this.playerCar.gas = 0; 
-        this.playerCar.brake = 0;
-        this.playerCar.clutch = 0;
-        
-        this.opponentCar.x = 0;
-        this.opponentCar.speed = 0;
-        
+        this.playerCar.reset();
+        this.opponentCar.reset();
+
         this.lights = 0;
-        this.lightTimer = Date.now();
+        this.lightTimer = performance.now();
         this.raceStartTime = 0;
+        this.raceTimer = 0;
+        this.accumulator = 0;
+    },
+
+    returnToMenu() {
+        // Apply pending background rotation only when coming from a race
+        if (this._pendingRotation) {
+            this.currentBackground = (this.currentBackground + 1) % this.backgrounds.length;
+            this._pendingRotation = false;
+            this.saveGame();
+        }
+
+        this.state = 'MENU';
+        this.menuState = 'MAIN';
         this.finished = false;
+        this.paused = false;
         this.particles = [];
+        document.querySelectorAll('.menu-overlay').forEach(el => el.classList.add('hidden'));
+        document.getElementById('ui-layer').classList.remove('hidden');
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('controls').classList.add('hidden');
+        document.getElementById('pause-btn').classList.add('hidden');
+        document.getElementById('main-menu').classList.remove('hidden');
+        this.playerCar.reset();
+        this.updateMenuUI();
     },
 
     openGarage() {
         this.menuState = 'GARAGE';
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('garage-menu').classList.remove('hidden');
-        
         const container = document.getElementById('car-stats-display');
         container.innerHTML = '';
         this.ownedCars.forEach((car, index) => {
             const div = document.createElement('div');
-            div.className = `car-item ${index === this.selectedCarIndex ? 'selected' : ''}`;
-            div.innerHTML = `
-                <div>
-                    <div style="color:${car.color}; font-size:16px;">${car.name}</div>
-                    <div style="font-size:10px; color:#aaa; margin-top:5px;">
-                       HP: ${car.hp.toFixed(0)} | Weight: ${car.weight}kg | Grip: ${car.grip.toFixed(1)}
-                    </div>
-                </div>
-                ${index === this.selectedCarIndex ? '<div style="color:#ffeb3b">DRIVING</div>' : '<div class="btn" style="width:60px; height:20px; font-size:8px;">DRIVE</div>'}
-            `;
+            div.className = 'car-item ' + (index === this.selectedCarIndex ? 'selected' : '');
+            const hp = Math.round(car.hp);
+            const pw = (car.hp / car.weight * 1000).toFixed(0);
+            div.innerHTML =
+                '<div>' +
+                    '<div style="color:' + car.color + '; font-size:14px;">' + car.name + '</div>' +
+                    '<div style="font-size:9px; color:#aaa; margin-top:5px;">' +
+                        hp + ' HP &middot; ' + car.weight + 'kg &middot; ' + pw + ' hp/ton' +
+                    '</div>' +
+                    '<div style="font-size:8px; color:#555; margin-top:3px;">' +
+                        'Redline: ' + car.redline + ' &middot; Grip: ' + car.grip.toFixed(2) +
+                    '</div>' +
+                '</div>' +
+                (index === this.selectedCarIndex
+                    ? '<div style="color:#ffeb3b; font-size:10px;">DRIVING</div>'
+                    : '<div style="color:#4caf50; font-size:9px;">SELECT</div>');
             div.onclick = () => {
                 this.selectedCarIndex = index;
                 this.playerCar = this.ownedCars[index];
-                this.openGarage(); // Refresh
+                this.saveGame();
+                this.openGarage();
             };
             container.appendChild(div);
         });
@@ -1314,46 +2093,52 @@ const game = {
         this.updateMenuUI();
 
         const upgrades = [
-            { key: 'engine', name: "ECU Remap", stages: 5, cost: 500, desc: "+15% HP per stage" },
-            { key: 'injector', name: "Fuel System", stages: 5, cost: 800, desc: "+8% HP per stage" },
-            { key: 'chassis', name: "Weight Reduction", stages: 3, cost: 1200, desc: "-40kg per stage" },
-            { key: 'shortGears', name: "Short Gears", stages: 3, cost: 1500, desc: "Faster Accel, Lower Top Speed" },
-            { key: 'slicks', name: "Drag Slicks", stages: 1, cost: 2500, desc: "Essential for 500HP+" },
-            { key: 'performanceGearbox', name: "Pro Transmission", stages: 1, cost: 8000, desc: "7-Speed Close Ratio Box" },
+            { key: 'engine', name: 'ECU Remap', stages: 5, cost: 500, desc: '+12% HP per stage, +300 rpm redline' },
+            { key: 'injector', name: 'Fuel System', stages: 5, cost: 800, desc: '+6% HP per stage' },
+            { key: 'chassis', name: 'Weight Reduction', stages: 3, cost: 1200, desc: '-35kg per stage (min 600kg)' },
+            { key: 'shortGears', name: 'Short Gears', stages: 3, cost: 1500, desc: '+0.25 final drive per stage' },
+            { key: 'slicks', name: 'Drag Slicks', stages: 1, cost: 2500, desc: '+0.55 grip — essential for 400+ HP' },
+            { key: 'aero', name: 'Aero Package', stages: 1, cost: 3500, desc: '-15% drag' },
+            { key: 'performanceGearbox', name: 'Pro Transmission', stages: 1, cost: 8000, desc: '7-speed close ratio' },
+            { key: 'parachute', name: 'Parachute', stages: 1, cost: 4000, desc: 'Extra braking force above 5 m/s' },
         ];
 
         const container = document.getElementById('shop-items');
         container.innerHTML = '';
-        
+        const car = this.playerCar;
+
         upgrades.forEach(item => {
-            const lvl = this.playerCar.upgrades[item.key] || 0;
+            const lvl = car.upgrades[item.key] || 0;
             const isBool = item.stages === 1;
-            const isMax = isBool ? lvl : lvl >= item.stages;
-            const cost = isMax ? 0 : item.cost * (isBool ? 1 : lvl); 
+            const isMax = isBool ? !!lvl : lvl >= item.stages;
+            const cost = isMax ? 0 : item.cost * (isBool ? 1 : lvl);
 
             const div = document.createElement('div');
             div.className = 'shop-item';
-            div.innerHTML = `
-                <div class="shop-item-header">
-                    <span style="color:#fff">${item.name} <span style="color:#666">${isBool ? '' : 'Lvl '+lvl}</span></span>
-                    <span style="color:${isMax ? '#4caf50' : (this.cash>=cost?'#4caf50':'#f44336')}">${isMax ? "MAX" : "$"+cost}</span>
-                </div>
-                <div class="shop-item-detail">${item.desc}</div>
-            `;
-            
+            div.innerHTML =
+                '<div class="shop-item-header">' +
+                    '<span style="color:#fff">' + item.name +
+                        ' <span style="color:#666">' + (isBool ? (isMax ? '✓' : '') : 'Lvl ' + lvl) + '</span>' +
+                    '</span>' +
+                    '<span style="color:' + (isMax ? '#4caf50' : (this.cash >= cost ? '#4caf50' : '#f44336')) + '">' +
+                        (isMax ? 'MAX' : '$' + cost.toLocaleString()) +
+                    '</span>' +
+                '</div>' +
+                '<div class="shop-item-detail">' + item.desc + '</div>';
+
             div.onclick = () => {
-                if(isMax) return;
-                if(this.cash >= cost) {
+                if (isMax) return;
+                if (this.cash >= cost) {
                     this.cash -= cost;
-                    if(isBool) this.playerCar.upgrades[item.key] = true;
-                    else this.playerCar.upgrades[item.key]++;
-                    
-                    this.playerCar.applyUpgrades();
+                    if (isBool) car.upgrades[item.key] = true;
+                    else car.upgrades[item.key]++;
+                    car.applyUpgrades();
+                    this.saveGame();
                     this.updateMenuUI();
                     this.openShop();
-                    this.showNotification("INSTALLED");
+                    this.showNotification('INSTALLED');
                 } else {
-                    this.showNotification("TOO EXPENSIVE");
+                    this.showNotification('INSUFFICIENT FUNDS');
                 }
             };
             container.appendChild(div);
@@ -1364,79 +2149,58 @@ const game = {
         this.menuState = 'DEALER';
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('dealership-menu').classList.remove('hidden');
-        document.getElementById('gemini-review-output').style.display = 'none';
         this.updateMenuUI();
-        
+
         const container = document.getElementById('dealer-items');
         container.innerHTML = '';
-        
-        if(!this.previewCar) this.previewCar = new Car(this.carDefs[1]);
+        if (!this.previewCar) this.previewCar = new Car(this.carDefs[1]);
 
         this.carDefs.forEach(def => {
             const isOwned = this.ownedCars.some(c => c.name === def.name);
             const div = document.createElement('div');
-            div.className = `car-item ${isOwned ? 'owned' : ''}`;
-            div.innerHTML = `
-                <div>${def.name} <span style="font-size:8px; color:#888">${def.hp} HP</span></div>
-                <div style="color:${isOwned ? '#aaa' : (this.cash >= def.price ? '#4caf50' : '#f44336')}">
-                    ${isOwned ? "OWNED" : "$"+def.price}
-                </div>
-            `;
-            
+            div.className = 'car-item ' + (isOwned ? 'owned' : '');
+            const pw = (def.hp / def.weight * 1000).toFixed(0);
+            div.innerHTML =
+                '<div>' +
+                    '<span style="font-size:13px">' + def.name + '</span>' +
+                    '<span style="font-size:9px; color:#888; margin-left:6px;">' + def.hp + ' HP &middot; ' + def.weight + 'kg &middot; ' + pw + ' hp/ton</span>' +
+                '</div>' +
+                '<div style="color:' + (isOwned ? '#4caf50' : (this.cash >= def.price ? '#4caf50' : '#f44336')) + '; font-size:11px;">' +
+                    (isOwned ? 'OWNED' : '$' + def.price.toLocaleString()) +
+                '</div>';
+
             div.onclick = () => {
                 this.previewCar = new Car(def);
-                if(isOwned) return;
-                
-                if(confirm(`Purchase ${def.name} for $${def.price}?`)) {
-                    if(this.cash >= def.price) {
-                        this.cash -= def.price;
-                        const newCar = new Car(JSON.parse(JSON.stringify(def)));
-                        this.ownedCars.push(newCar);
-                        this.playerCar = newCar;
-                        this.selectedCarIndex = this.ownedCars.length - 1;
-                        this.updateMenuUI();
-                        this.openDealership();
-                        this.showNotification("PURCHASE SUCCESSFUL");
-                    } else {
-                        this.showNotification("INSUFFICIENT FUNDS");
+                if (isOwned) {
+                    const idx = this.ownedCars.findIndex(c => c.name === def.name);
+                    if (idx >= 0) {
+                        this.selectedCarIndex = idx;
+                        this.playerCar = this.ownedCars[idx];
+                        this.saveGame();
+                        this.showNotification('SELECTED');
                     }
+                    return;
                 }
-            }
+                if (this.cash >= def.price) {
+                    this.cash -= def.price;
+                    const newCar = new Car(JSON.parse(JSON.stringify(def)));
+                    this.ownedCars.push(newCar);
+                    this.selectedCarIndex = this.ownedCars.length - 1;
+                    this.playerCar = newCar;
+                    this.saveGame();
+                    this.updateMenuUI();
+                    this.openDealership();
+                    this.showNotification('PURCHASED!');
+                } else {
+                    this.showNotification('INSUFFICIENT FUNDS');
+                }
+            };
             container.appendChild(div);
         });
-    },
-
-    returnToMenu() {
-        this.state = 'MENU';
-        this.menuState = 'MAIN';
-        document.querySelectorAll('.menu-overlay').forEach(el => el.classList.add('hidden'));
-        document.getElementById('ui-layer').classList.remove('hidden');
-        document.getElementById('hud').classList.add('hidden');
-        document.getElementById('controls').classList.add('hidden');
-        document.getElementById('main-menu').classList.remove('hidden');
-        
-        this.playerCar.x = 0;
-        this.playerCar.speed = 0;
-        this.updateMenuUI();
-    },
-
-    updateMenuUI() {
-        document.getElementById('menu-cash').innerText = this.cash;
-        document.getElementById('shop-cash').innerText = this.cash;
-        document.getElementById('dealer-cash').innerText = this.cash;
-    },
-
-    showNotification(text) {
-        const n = document.getElementById('notification');
-        n.innerText = text;
-        n.style.opacity = 1;
-        n.style.top = '20%';
-        setTimeout(() => { n.style.opacity = 0; n.style.top = '25%'; }, 1000);
     }
 };
 
-window.onload = () => game.init();
-
+window.addEventListener('load', () => game.init());
 </script>
 </body>
 </html>
