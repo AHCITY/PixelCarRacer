@@ -10,7 +10,7 @@ Pixel Car Racer is a 2D drag racing game with different cars, upgrades and tourn
 
 ## 📸 Screenshots
 
-![PixelCarRacer](assets/pixel-car-racer.gif)
+![PixelCarRacer](assets\pixel-car-racer..gif)
 
 ## 🎮 How to Play
 
