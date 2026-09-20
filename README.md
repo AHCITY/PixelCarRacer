@@ -1,3 +1,5 @@
+<img src="assets/game_banner.jpg" alt="Pixel Car Racer Banner" width="70%">
+
 # Pixel Car Racer
 
 [▶ Play Pixel Car Racer](https://ahcity.github.io/PixelCarRacer/)
@@ -10,7 +12,7 @@ Pixel Car Racer is a 2D drag racing game with different cars, upgrades and tourn
 
 ## 📸 Screenshots
 
-![PixelCarRacer](assets\pixel-car-racer..gif)
+<img src="assets/game_screenshot.jpg" alt="Pixel Car Racer Gameplay" width="60%">
 
 ## 🎮 How to Play
 
@@ -31,7 +33,7 @@ Pixel Car Racer is a 2D drag racing game with different cars, upgrades and tourn
 
 ### New
 
-* Added  mobile support with touch controls.
+* Added mobile support with touch controls.
 * Added Gear shift feedback: Perfect, Good, Early and Late.
 * Added engine braking, RPM lugging and stalling.
 * Added random AI car customizations with different rims, spoilers, body kits, exhausts, tires, tints and liveries.
