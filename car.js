@@ -7,6 +7,9 @@ class Car {
         this.secondaryColor = config.secondaryColor || '#9a0007';
         this.price = config.price || 0;
         this.type = config.type || 'hatch';
+        // Art is independent from performance type: cars sharing a drivetrain class
+        // still keep their own silhouette and attachment points.
+        this.art = config.art || this.type;
 
         this.baseHp = config.hp || 200;
         this.baseRedline = config.redline || 7000;
@@ -16,7 +19,8 @@ class Car {
         this.baseGrip = config.grip || 1.0;
         this.baseDragArea = config.dragArea || 0.75;
 
-        this.customization = config.customization || this._randomCustomization();
+        this.customization = config.randomizeCustomization ? this._randomCustomization() : this._stockCustomization();
+        this.tune = { finalDrive: 0, gearSpacing: 0, launch: 0, aeroTrim: 0, ...(config.tune || {}) };
 
         this.upgrades = config.upgrades ? JSON.parse(JSON.stringify(config.upgrades)) : {
             engine: 1, injector: 1, chassis: 1, shortGears: 1,
@@ -46,6 +50,11 @@ class Car {
         };
     }
 
+    _stockCustomization() {
+        const C = window.CUSTOMIZATION || game.CUSTOMIZATION;
+        return { rim: C.rims[0], spoiler: C.spoilers[0], bodyKit: C.bodyKits[0], exhaust: C.exhausts[0], tire: C.tires[0], tint: C.tints[0], livery: C.liveries[0] };
+    }
+
     applyUpgrades() {
         const u = this.upgrades;
         this.hp = this.baseHp * (1 + 0.12 * (u.engine - 1)) * (1 + 0.06 * (u.injector - 1));
@@ -56,8 +65,17 @@ class Car {
         if (u.performanceGearbox) {
             this.gearRatios = [0, 3.4, 2.35, 1.75, 1.35, 1.08, 0.88, 0.73];
         }
-        this.finalDrive = this.baseFinalDrive + 0.25 * (u.shortGears - 1);
-        this.dragArea = u.aero ? this.baseDragArea * 0.85 : this.baseDragArea;
+        const spacing = Math.max(-3, Math.min(3, this.tune.gearSpacing || 0));
+        const first = this.gearRatios[1];
+        for (let i = 2; i < this.gearRatios.length; i++) {
+            this.gearRatios[i] = first * Math.pow(this.gearRatios[i] / first, 1 - spacing * 0.055);
+        }
+        this.finalDrive = this.baseFinalDrive + 0.25 * (u.shortGears - 1) + 0.12 * Math.max(-3, Math.min(3, this.tune.finalDrive || 0));
+        const aeroTrim = Math.max(-3, Math.min(3, this.tune.aeroTrim || 0));
+        this.dragArea = (u.aero ? this.baseDragArea * 0.85 : this.baseDragArea) * (1 + aeroTrim * 0.025);
+        this.launchGripBonus = 0.035 * Math.max(-3, Math.min(3, this.tune.launch || 0));
+        this.launchTorqueMultiplier = 1 + 0.04 * Math.max(-3, Math.min(3, this.tune.launch || 0));
+        this.grip += Math.max(0, aeroTrim) * 0.018;
         this.parachuteDrag = u.parachute ? 2500 : 0;
     }
 
@@ -109,14 +127,15 @@ class Car {
             (this.rpm - LUG_RPM_LOW) / (LUG_RPM_HIGH - LUG_RPM_LOW)));
 
         const speed = Math.max(this.speed, 0.5);
-        let force = (powerWatts * ratio * DRIVETRAIN_EFFICIENCY * torqueFactor * lugFactor * this.gas)
+        const launchMultiplier = this.speed < 18 ? this.launchTorqueMultiplier : 1;
+        let force = (powerWatts * ratio * DRIVETRAIN_EFFICIENCY * torqueFactor * lugFactor * this.gas * launchMultiplier)
             / (speed * WHEEL_RADIUS);
 
         if (rpmRatio > 0.95) {
             force *= Math.max(0, (1 - rpmRatio) * 20);
         }
 
-        const maxTraction = this.weight * G * this.grip * 0.7;
+        const maxTraction = this.weight * G * Math.max(0.45, this.grip + this.launchGripBonus) * 0.7;
         return Math.min(force, maxTraction);
     }
 

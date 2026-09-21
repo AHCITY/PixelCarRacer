@@ -5,6 +5,60 @@ function getRoadY(H, isMobile) {
     return Math.min(H - 140, H * (isMobile ? 0.60 : 0.72));
 }
 
+// A deliberately small, pixel-friendly side-profile library. These are original
+// silhouettes, not generic body-type rectangles; each profile also owns the
+// attachment coordinates used by visual customization and particles.
+const CAR_ART = {
+    civic_ek: { p:[[1,37],[3,26],[16,22],[25,10],[59,8],[74,13],[85,23],[98,26],[100,37]], glass:[[27,21],[31,12],[57,11],[70,15],[78,21]], wheels:[[22,36],[82,36]], rear:3, front:96, spoiler:[5,20] },
+    s14: { p:[[0,37],[3,27],[15,24],[31,12],[61,10],[75,15],[86,24],[99,27],[101,37]], glass:[[31,22],[36,13],[59,12],[71,16],[80,22]], wheels:[[22,36],[82,36]], rear:2, front:97, spoiler:[5,22] },
+    mustang_sn95: { p:[[1,37],[4,26],[20,23],[35,12],[68,11],[78,16],[86,24],[103,27],[105,37]], glass:[[37,22],[41,14],[65,14],[74,18],[80,22]], wheels:[[23,36],[85,36]], rear:3, front:101, spoiler:[6,21] },
+    r34: { p:[[0,37],[3,25],[18,22],[29,10],[67,10],[80,17],[88,24],[100,27],[102,37]], glass:[[30,21],[34,12],[64,12],[76,18],[82,21]], wheels:[[22,36],[83,36]], rear:2, front:98, spoiler:[4,20] },
+    supra_a80: { p:[[0,37],[4,28],[17,24],[35,14],[57,11],[72,14],[86,23],[99,27],[101,37]], glass:[[34,22],[42,15],[57,14],[69,18],[76,22]], wheels:[[22,36],[82,36]], rear:2, front:97, spoiler:[4,20] },
+    viper_acr: { p:[[0,37],[4,27],[20,23],[38,13],[60,12],[72,16],[83,24],[101,27],[103,37]], glass:[[39,21],[45,15],[60,15],[69,19],[76,22]], wheels:[[23,36],[84,36]], rear:2, front:99, spoiler:[4,19] },
+    huracan: { p:[[0,37],[5,29],[18,24],[35,15],[56,12],[76,15],[89,24],[100,28],[102,37]], glass:[[34,22],[42,16],[57,14],[72,18],[80,22]], wheels:[[22,36],[84,36]], rear:2, front:98, spoiler:[4,20] },
+    funny_car: { p:[[-12,37],[-8,26],[15,23],[22,11],[43,11],[49,23],[106,23],[122,28],[122,37]], glass:[[26,21],[28,14],[39,14],[43,21]], wheels:[[10,36],[100,36]], rear:-10, front:120, spoiler:[-14,18] },
+};
+function artFor(car) { return CAR_ART[car.art] || CAR_ART.civic_ek; }
+function traceProfile(ctx, art) { ctx.beginPath(); ctx.moveTo(art.p[0][0], art.p[0][1]); for (let i = 1; i < art.p.length; i++) ctx.lineTo(art.p[i][0], art.p[i][1]); ctx.closePath(); }
+function drawPolygon(ctx, points) { ctx.beginPath(); ctx.moveTo(points[0][0], points[0][1]); for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]); ctx.closePath(); ctx.fill(); }
+function drawModernWheel(ctx, x, y, tire, rim, car) {
+    ctx.fillStyle = '#080a0c'; ctx.beginPath(); ctx.arc(x, y, tire, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#30343a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, tire - .7, 0, Math.PI * 2); ctx.stroke();
+    ctx.save(); ctx.translate(x, y); ctx.rotate(car.wheelRotation);
+    const style = car.customization?.rim;
+    if (style?.draw) style.draw(ctx, rim); else { ctx.fillStyle = '#7a7a7a'; ctx.beginPath(); ctx.arc(0, 0, rim, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+}
+function renderModernCar(ctx, car, c, s, glass) {
+    const art = artFor(car), tireDef = car.customization?.tire;
+    const rearTire = tireDef?.radius || (car.upgrades.slicks ? 13 : 11);
+    const frontTire = car.type === 'dragster' ? 6 : rearTire;
+    const rimFactor = tireDef?.rimRadius || .55;
+    car._artAnchors = {
+        rearWheel: { x: art.wheels[0][0], y: art.wheels[0][1], r: rearTire }, frontWheel: { x: art.wheels[1][0], y: art.wheels[1][1], r: frontTire },
+        exhaust: { x: art.rear, y: 29 }, spoiler: { x: art.spoiler[0], y: art.spoiler[1] }, kit: { x: art.rear + 4, y: 37, w: art.front - art.rear - 8 },
+        livery: { x: Math.max(4, art.rear + 6), y: 21, w: Math.max(36, art.front - art.rear - 12), h: 15 }
+    };
+    const shadow = ctx.createRadialGradient((art.rear + art.front) / 2, 42, 8, (art.rear + art.front) / 2, 42, (art.front - art.rear) * .62);
+    shadow.addColorStop(0, 'rgba(0,0,0,.55)'); shadow.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = shadow; ctx.fillRect(art.rear - 15, 34, art.front - art.rear + 30, 17);
+    traceProfile(ctx, art); const paint = ctx.createLinearGradient(0, 8, 0, 39); paint.addColorStop(0, '#ffffff'); paint.addColorStop(.07, c); paint.addColorStop(.7, c); paint.addColorStop(1, '#171a1e'); ctx.fillStyle = paint; ctx.fill();
+    ctx.strokeStyle = '#11151a'; ctx.lineWidth = 1.25; traceProfile(ctx, art); ctx.stroke();
+    ctx.fillStyle = glass; drawPolygon(ctx, art.glass); ctx.strokeStyle = 'rgba(210,235,255,.36)'; ctx.lineWidth = .7; ctx.beginPath(); ctx.moveTo(art.glass[0][0], art.glass[0][1]); for (let i = 1; i < art.glass.length; i++) ctx.lineTo(art.glass[i][0], art.glass[i][1]); ctx.stroke();
+    ctx.save(); traceProfile(ctx, art); ctx.clip(); if (car.customization?.livery?.draw) car.customization.livery.draw(ctx, car); ctx.restore();
+    // Detail layer deliberately follows decals, preserving lamps, panel gaps and glass readability.
+    const rear = art.rear, front = art.front; ctx.strokeStyle = 'rgba(8,12,16,.62)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo((rear + front) * .48, 23); ctx.lineTo((rear + front) * .48, 35); ctx.moveTo((rear + front) * .63, 23); ctx.lineTo((rear + front) * .63, 34); ctx.stroke();
+    ctx.fillStyle = '#efefc6'; ctx.fillRect(front - 5, 26, 4, 3); ctx.fillStyle = '#c52a2a'; ctx.fillRect(rear + 1, 26, 4, 4); ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(front - 18, 24, 10, 1);
+    if (car.upgrades.engine > 2 && (car.art === 'mustang_sn95' || car.art === 'supra_a80')) { ctx.fillStyle = '#a7b0b8'; ctx.fillRect(front - 29, 17, 15, 4); ctx.fillStyle = '#20252b'; ctx.fillRect(front - 26, 15, 3, 3); ctx.fillRect(front - 19, 15, 3, 3); }
+    if (car.customization?.bodyKit?.draw) car.customization.bodyKit.draw(ctx, car);
+    if (car.customization?.spoiler?.draw) car.customization.spoiler.draw(ctx, car);
+    if (car.customization?.exhaust?.draw) car.customization.exhaust.draw(ctx, car);
+    drawModernWheel(ctx, art.wheels[0][0], art.wheels[0][1], rearTire, rearTire * rimFactor, car);
+    drawModernWheel(ctx, art.wheels[1][0], art.wheels[1][1], frontTire, frontTire * rimFactor, car);
+    // Painted upper arches restore a foreground fender edge after the wheels are drawn.
+    ctx.strokeStyle = c; ctx.lineWidth = 2; for (const [wx, wy] of art.wheels) { ctx.beginPath(); ctx.arc(wx, wy, 9, Math.PI, Math.PI * 2); ctx.stroke(); }
+    if (car.upgrades.parachute && car.speed < 10 && car.type !== 'hatch') { ctx.fillStyle = '#aeb5bb'; ctx.beginPath(); ctx.arc(rear - 7, 26, 5, 0, Math.PI * 2); ctx.fill(); }
+}
+
 const Renderer = {
     drawGarageBg(ctx, W, H, menuState, previewCar, playerCar) {
         ctx.fillStyle = '#111';
@@ -41,10 +95,16 @@ const Renderer = {
             ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
         }
 
-        const camX = Math.max(0, playerCar.x * METERS_TO_PX - 180);
-        game.drawBackground(ctx, W, H, camX); // Delegated to game for background state
-
         const roadY = getRoadY(H, _isMobile);
+        // A restrained close-follow camera: it keeps the player near the left third
+        // while enlarging the race scene without losing the start lights or HUD.
+        const cameraZoom = _isMobile ? 1.24 : 1.35;
+        const followOffset = Math.min(W * 0.34, 220);
+        const camX = Math.max(0, playerCar.x * METERS_TO_PX - followOffset);
+        const focusX = followOffset + 40, focusY = roadY + 58;
+        ctx.save();
+        ctx.translate(focusX, focusY); ctx.scale(cameraZoom, cameraZoom); ctx.translate(-focusX, -focusY);
+        game.drawBackground(ctx, W, H, camX); // Delegated to game for background state
         ctx.fillStyle = '#1a1a1a';
         ctx.fillRect(0, roadY, W, H - roadY);
         ctx.fillStyle = '#000';
@@ -78,6 +138,7 @@ const Renderer = {
         this.drawCar(ctx, opponentCar, oX, oppLaneY, 0.95);
         this.drawCar(ctx, playerCar, pX, playerLaneY, 1.1);
 
+        ctx.restore();
         this.drawDashboard(ctx, W, H, playerCar, raceState);
         this.drawProgressBar(ctx, W, H, playerCar, opponentCar, raceDistance);
         
@@ -336,20 +397,20 @@ const Renderer = {
 
         if (raceState === 'STAGING') {
             ctx.fillStyle = '#ffeb3b';
-            ctx.font = '13px "Press Start 2P"';
+            ctx.font = '16px "Press Start 2P"';
             ctx.textAlign = 'center';
-            ctx.fillText('REV ENGINE TO START', W / 2, H * 0.28);
-            ctx.font = '9px "Press Start 2P"';
+            ctx.fillText('REV THE ENGINE', W / 2, H * 0.23);
+            ctx.font = '10px "Press Start 2P"';
             ctx.fillStyle = '#888';
-            ctx.fillText('HOLD CLUTCH + GAS', W / 2, H * 0.28 + 22);
+            ctx.fillText('W OR GAS', W / 2, H * 0.23 + 21);
         } else if (raceState === 'COUNTDOWN') {
             ctx.fillStyle = '#4fc3f7';
-            ctx.font = '10px "Press Start 2P"';
+            ctx.font = '12px "Press Start 2P"';
             ctx.textAlign = 'center';
-            ctx.fillText('HOLD CLUTCH', W / 2, H * 0.28);
+            ctx.fillText('GET READY', W / 2, H * 0.23);
             ctx.fillStyle = '#888';
-            ctx.font = '8px "Press Start 2P"';
-            ctx.fillText('SHIFT UP FOR 1ST GEAR', W / 2, H * 0.28 + 18);
+            ctx.font = '9px "Press Start 2P"';
+            ctx.fillText('SHIFT UP FOR FIRST GEAR', W / 2, H * 0.23 + 19);
         }
     },
 
@@ -396,6 +457,10 @@ const Renderer = {
         const glass = car.customization?.tint?.color || '#1a2332';
         const dark = '#0a0a0a';
         const rim = car.upgrades.slicks ? '#e8c400' : '#7a7a7a';
+
+        renderModernCar(ctx, car, c, s, glass);
+        ctx.restore();
+        return;
 
         if (car.type === 'hatch') {
             ctx.fillStyle = c;

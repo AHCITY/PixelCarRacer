@@ -3,62 +3,119 @@
 /* ─── AI Customization System ─── */
 const CUSTOMIZATION = {
     rims: [
-        { name: 'stock', draw: (ctx, r) => { ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#888'; ctx.beginPath(); ctx.arc(0, 0, r*0.25, 0, Math.PI*2); ctx.fill(); } },
-        { name: '5-spoke', draw: (ctx, r) => { ctx.fillStyle = '#aaa'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(0, 0, r*0.5, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#888'; ctx.beginPath(); ctx.arc(0, 0, r*0.2, 0, Math.PI*2); ctx.fill(); } },
-        { name: 'mesh', draw: (ctx, r) => { ctx.fillStyle = '#666'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#222'; for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ctx.fillRect(Math.cos(a)*r*0.3-1, Math.sin(a)*r*0.3-1, 2, r*0.7); } ctx.fillStyle = '#999'; ctx.beginPath(); ctx.arc(0, 0, r*0.2, 0, Math.PI*2); ctx.fill(); } },
-        { name: 'deep-dish', draw: (ctx, r) => { ctx.fillStyle = '#444'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#aaa'; ctx.beginPath(); ctx.arc(0, 0, r*0.7, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(0, 0, r*0.3, 0, Math.PI*2); ctx.fill(); } },
-        { name: 'blade', draw: (ctx, r) => { ctx.fillStyle = '#777'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#222'; for (let i = 0; i < 5; i++) { const a = i * Math.PI / 2.5; ctx.fillRect(Math.cos(a)*r*0.2, Math.sin(a)*r*0.2, 3, r*0.7); } ctx.fillStyle = '#ccc'; ctx.beginPath(); ctx.arc(0, 0, r*0.15, 0, Math.PI*2); ctx.fill(); } },
-        { name: 'star', draw: (ctx, r) => { ctx.fillStyle = '#888'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#ddd'; for (let i = 0; i < 5; i++) { const a = i * Math.PI / 2.5 - Math.PI/2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a)*r*0.9, Math.sin(a)*r*0.9); ctx.lineTo(Math.cos(a+0.5)*r*0.4, Math.sin(a+0.5)*r*0.4); ctx.fill(); } ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(0, 0, r*0.15, 0, Math.PI*2); ctx.fill(); } },
+        { id: 'stock', name: 'stock', draw: (ctx, r) => drawRim(ctx, r, 4, '#6f7780') },
+        { id: 'five_spoke', name: '5-spoke', draw: (ctx, r) => drawRim(ctx, r, 5, '#d1d5db') },
+        { id: 'mesh', name: 'mesh', draw: (ctx, r) => drawRim(ctx, r, 12, '#8b949e', true) },
+        { id: 'deep_dish', name: 'deep-dish', draw: (ctx, r) => drawRim(ctx, r, 6, '#b7bcc4', false, true) },
+        { id: 'blade', name: 'blade', draw: (ctx, r) => drawRim(ctx, r, 5, '#c7ced6', false, false, 0.24) },
+        { id: 'star', name: 'star', draw: (ctx, r) => drawRim(ctx, r, 5, '#e5e7eb', false, false, 0.48) },
     ],
     spoilers: [
-        { name: 'none' },
-        { name: 'lip', draw: (ctx, car) => { ctx.fillStyle = car.secondaryColor; ctx.fillRect(4, 18, 6, 8); } },
-        { name: 'ducktail', draw: (ctx, car) => { ctx.fillStyle = car.secondaryColor; ctx.beginPath(); ctx.moveTo(2, 18); ctx.lineTo(2, 22); ctx.lineTo(10, 22); ctx.lineTo(10, 18); ctx.closePath(); ctx.fill(); } },
-        { name: 'wing', draw: (ctx, car) => { ctx.fillStyle = '#111'; ctx.fillRect(2, 14, 4, 12); ctx.fillStyle = car.secondaryColor; ctx.fillRect(-2, 12, 12, 3); } },
-        { name: 'gt-wing', draw: (ctx, car) => { ctx.fillStyle = '#222'; ctx.fillRect(0, 10, 3, 18); ctx.fillRect(8, 10, 3, 18); ctx.fillStyle = car.secondaryColor; ctx.fillRect(-4, 8, 18, 4); } },
+        { id: 'none', name: 'none' },
+        { id: 'lip', name: 'lip', draw: (ctx, car) => drawSpoiler(ctx, car, 'lip') },
+        { id: 'ducktail', name: 'ducktail', draw: (ctx, car) => drawSpoiler(ctx, car, 'ducktail') },
+        { id: 'wing', name: 'wing', draw: (ctx, car) => drawSpoiler(ctx, car, 'wing') },
+        { id: 'gt_wing', name: 'gt-wing', draw: (ctx, car) => drawSpoiler(ctx, car, 'gt') },
     ],
     bodyKits: [
-        { name: 'stock' },
-        { name: 'lip-kit', draw: (ctx, car) => { ctx.fillStyle = '#222'; ctx.fillRect(4, 36, 92, 3); } },
-        { name: 'widebody', draw: (ctx, car) => { ctx.fillStyle = car.color; ctx.fillRect(-4, 20, 6, 18); ctx.fillRect(98, 20, 6, 18); ctx.fillStyle = '#111'; ctx.fillRect(4, 36, 92, 3); } },
-        { name: 'track', draw: (ctx, car) => { ctx.fillStyle = '#111'; ctx.fillRect(0, 36, 100, 4); ctx.fillRect(-2, 20, 4, 18); ctx.fillRect(98, 20, 4, 18); } },
+        { id: 'stock', name: 'stock' },
+        { id: 'lip_kit', name: 'lip-kit', draw: (ctx, car) => drawBodyKit(ctx, car, 'lip') },
+        { id: 'widebody', name: 'widebody', draw: (ctx, car) => drawBodyKit(ctx, car, 'wide') },
+        { id: 'track', name: 'track', draw: (ctx, car) => drawBodyKit(ctx, car, 'track') },
     ],
     exhausts: [
-        { name: 'stock' },
-        { name: 'single', draw: (ctx, car) => { ctx.fillStyle = '#ccc'; ctx.fillRect(-4, 26, 4, 3); } },
-        { name: 'dual', draw: (ctx, car) => { ctx.fillStyle = '#ccc'; ctx.fillRect(-4, 24, 4, 3); ctx.fillRect(-4, 30, 4, 3); } },
-        { name: 'side-pipe', draw: (ctx, car) => { ctx.fillStyle = '#aaa'; ctx.fillRect(-2, 22, 30, 3); } },
+        { id: 'stock', name: 'stock' },
+        { id: 'single', name: 'single', draw: (ctx, car) => drawExhaust(ctx, car, 'single') },
+        { id: 'dual', name: 'dual', draw: (ctx, car) => drawExhaust(ctx, car, 'dual') },
+        { id: 'side_pipe', name: 'side-pipe', draw: (ctx, car) => drawExhaust(ctx, car, 'side') },
     ],
     tires: [
-        { name: 'street', radius: 11, rimRadius: 0.55 },
-        { name: 'sport', radius: 12, rimRadius: 0.6 },
-        { name: 'slick', radius: 13, rimRadius: 0.5, slick: true },
-        { name: 'low-profile', radius: 11, rimRadius: 0.7 },
+        { id: 'street', name: 'street', radius: 11, rimRadius: 0.55 },
+        { id: 'sport', name: 'sport', radius: 12, rimRadius: 0.6 },
+        { id: 'slick', name: 'slick', radius: 13, rimRadius: 0.5, slick: true },
+        { id: 'low_profile', name: 'low-profile', radius: 11, rimRadius: 0.7 },
     ],
     tints: [
-        { name: 'clear', color: '#1a2332' },
-        { name: '25%', color: '#1a2332' },
-        { name: '50%', color: '#0f1520' },
-        { name: '75%', color: '#080c15' },
-        { name: 'limo', color: '#000000' },
+        { id: 'clear', name: 'clear', color: '#1a2332' },
+        { id: 'tint_25', name: '25%', color: '#1a2332' },
+        { id: 'tint_50', name: '50%', color: '#0f1520' },
+        { id: 'tint_75', name: '75%', color: '#080c15' },
+        { id: 'limo', name: 'limo', color: '#000000' },
     ],
     liveries: [
-        { name: 'solid' },
-        { name: 'racing-stripe', draw: (ctx, car) => { ctx.fillStyle = car.secondaryColor; ctx.fillRect(2, 28, 96, 4); } },
-        { name: 'dual-stripe', draw: (ctx, car) => { ctx.fillStyle = car.secondaryColor; ctx.fillRect(20, 22, 4, 16); ctx.fillRect(60, 22, 4, 16); } },
-        { name: 'flames', draw: (ctx, car) => { ctx.fillStyle = '#ff6d00'; ctx.beginPath(); ctx.moveTo(10, 38); ctx.lineTo(15, 28); ctx.lineTo(20, 38); ctx.lineTo(25, 30); ctx.lineTo(30, 38); ctx.fill(); } },
-        { name: 'camo', draw: (ctx, car) => { ctx.fillStyle = '#2a3a2a'; ctx.fillRect(10, 24, 8, 8); ctx.fillRect(30, 28, 10, 6); ctx.fillRect(50, 22, 12, 8); ctx.fillRect(70, 30, 8, 6); ctx.fillRect(85, 24, 10, 8); } },
-        { name: 'checker', draw: (ctx, car) => { for (let i = 0; i < 10; i++) { ctx.fillStyle = i % 2 === 0 ? '#fff' : '#000'; ctx.fillRect(2 + i * 10, 22, 5, 5); ctx.fillRect(2 + i * 10, 27, 5, 5); } } },
-        { name: 'gradient', draw: (ctx, car) => { const g = ctx.createLinearGradient(0, 20, 100, 38); g.addColorStop(0, 'rgba(255,255,255,0.3)'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.fillRect(0, 20, 100, 18); } },
-        { name: 'number', draw: (ctx, car) => { ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.fillText('7', 48, 34); } },
+        { id: 'solid', name: 'solid' },
+        { id: 'racing_stripe', name: 'racing-stripe', draw: (ctx, car) => drawLivery(ctx, car, 'stripe') },
+        { id: 'dual_stripe', name: 'dual-stripe', draw: (ctx, car) => drawLivery(ctx, car, 'dual') },
+        { id: 'flames', name: 'flames', draw: (ctx, car) => drawLivery(ctx, car, 'flames') },
+        { id: 'camo', name: 'camo', draw: (ctx, car) => drawLivery(ctx, car, 'camo') },
+        { id: 'checker', name: 'checker', draw: (ctx, car) => drawLivery(ctx, car, 'checker') },
+        { id: 'gradient', name: 'gradient', draw: (ctx, car) => drawLivery(ctx, car, 'gradient') },
+        { id: 'number', name: 'number', draw: (ctx, car) => drawLivery(ctx, car, 'number') },
     ],
 };
+
+// Saves contain IDs only.  Functions stay in this catalog, never in saved data.
+function serializeCustomization(customization) {
+    const out = {};
+    for (const key of ['rim', 'spoiler', 'bodyKit', 'exhaust', 'tire', 'tint', 'livery']) out[key] = customization?.[key]?.id || customization?.[key]?.name || null;
+    return out;
+}
+function hydrateCustomization(saved) {
+    const groups = { rim: 'rims', spoiler: 'spoilers', bodyKit: 'bodyKits', exhaust: 'exhausts', tire: 'tires', tint: 'tints', livery: 'liveries' };
+    const result = {};
+    for (const [key, group] of Object.entries(groups)) {
+        const value = saved?.[key];
+        result[key] = CUSTOMIZATION[group].find(item => item.id === value || item.name === value || item.name === value?.name) || CUSTOMIZATION[group][0];
+    }
+    return result;
+}
 window.CUSTOMIZATION = CUSTOMIZATION; // Expose for Car.js
+
+function drawRim(ctx, r, spokes, color, mesh = false, dish = false, blade = 0.12) {
+    ctx.fillStyle = dish ? '#25272b' : '#16191d'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    if (dish) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, 0, r * .76, 0, Math.PI * 2); ctx.fill(); }
+    ctx.strokeStyle = color; ctx.lineWidth = mesh ? 0.75 : 1.4;
+    for (let i = 0; i < spokes; i++) {
+        const a = i * Math.PI * 2 / spokes;
+        ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(r * .16, 0); ctx.lineTo(r * .9, 0); ctx.stroke();
+        if (mesh) { ctx.rotate(Math.PI / spokes); ctx.beginPath(); ctx.moveTo(r * .22, 0); ctx.lineTo(r * .82, 0); ctx.stroke(); }
+        ctx.restore();
+    }
+    ctx.fillStyle = dish ? '#111' : color; ctx.beginPath(); ctx.arc(0, 0, r * blade, 0, Math.PI * 2); ctx.fill();
+}
+function artAnchor(car, key) { return car._artAnchors?.[key] || { x: 3, y: 27 }; }
+function drawSpoiler(ctx, car, kind) {
+    const a = artAnchor(car, 'spoiler'); ctx.fillStyle = kind === 'lip' || kind === 'ducktail' ? car.secondaryColor : '#17191c';
+    if (kind === 'lip') ctx.fillRect(a.x, a.y, 10, 2);
+    else if (kind === 'ducktail') { ctx.beginPath(); ctx.moveTo(a.x, a.y + 2); ctx.lineTo(a.x + 10, a.y + 2); ctx.lineTo(a.x + 7, a.y - 2); ctx.lineTo(a.x + 1, a.y - 2); ctx.fill(); }
+    else { const w = kind === 'gt' ? 20 : 14; ctx.fillRect(a.x + 2, a.y, 2, 7); ctx.fillRect(a.x + w - 4, a.y, 2, 7); ctx.fillStyle = car.secondaryColor; ctx.fillRect(a.x, a.y - 2, w, 3); }
+}
+function drawBodyKit(ctx, car, kind) {
+    const a = artAnchor(car, 'kit'), rear = artAnchor(car, 'rearWheel'), front = artAnchor(car, 'frontWheel');
+    ctx.fillStyle = kind === 'wide' ? car.color : '#11151a'; ctx.fillRect(a.x, a.y, a.w, kind === 'track' ? 3 : 2);
+    if (kind !== 'lip') { ctx.fillRect(rear.x - rear.r - 2, rear.y - 4, 3, 8); ctx.fillRect(front.x + front.r - 1, front.y - 4, 3, 8); }
+}
+function drawExhaust(ctx, car, kind) {
+    const a = artAnchor(car, 'exhaust'); ctx.fillStyle = '#b8c0c8';
+    if (kind === 'side') ctx.fillRect(a.x, a.y, 24, 2);
+    else { ctx.fillRect(a.x - 4, a.y, 5, 2); if (kind === 'dual') ctx.fillRect(a.x - 4, a.y + 5, 5, 2); }
+}
+function drawLivery(ctx, car, kind) {
+    const a = artAnchor(car, 'livery');
+    if (kind === 'stripe') { ctx.fillStyle = car.secondaryColor; ctx.fillRect(a.x, a.y + 8, a.w, 3); }
+    else if (kind === 'dual') { ctx.fillStyle = car.secondaryColor; ctx.fillRect(a.x + a.w * .27, a.y + 3, 3, a.h - 3); ctx.fillRect(a.x + a.w * .56, a.y + 3, 3, a.h - 3); }
+    else if (kind === 'flames') { ctx.fillStyle = '#ff6d00'; ctx.beginPath(); ctx.moveTo(a.x + 4, a.y + a.h); ctx.lineTo(a.x + 11, a.y + 4); ctx.lineTo(a.x + 16, a.y + a.h); ctx.lineTo(a.x + 23, a.y + 9); ctx.lineTo(a.x + 30, a.y + a.h); ctx.fill(); }
+    else if (kind === 'camo') { ctx.fillStyle = '#2c3b2b'; for (let i = 0; i < 5; i++) ctx.fillRect(a.x + 5 + i * 15, a.y + ((i * 7) % 10), 8 + (i % 2) * 4, 5); }
+    else if (kind === 'checker') { for (let x = 0; x < a.w; x += 6) for (let y = 0; y < 8; y += 4) { ctx.fillStyle = ((x / 6 + y / 4) % 2) ? '#111' : '#eee'; ctx.fillRect(a.x + x, a.y + 7 + y, 6, 4); } }
+    else if (kind === 'gradient') { const g = ctx.createLinearGradient(a.x, a.y, a.x + a.w, a.y + a.h); g.addColorStop(0, 'rgba(255,255,255,.32)'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.fillRect(a.x, a.y, a.w, a.h); }
+    else if (kind === 'number') { ctx.fillStyle = '#fff'; ctx.font = 'bold 12px monospace'; ctx.fillText('7', a.x + a.w * .48, a.y + a.h - 2); }
+}
 
 const game = {
     canvas: null, ctx: null,
     state: 'MENU', menuState: 'MAIN',
     cash: 2500, ownedCars: [], selectedCarIndex: 0,
+    quickStats: { races: 0, wins: 0, recentMargin: 0 },
     raceDistance: 402,
     lights: 0, lightTimer: 0, raceStartTime: 0, raceTimer: 0,
     raceState: 'STAGING',
@@ -82,28 +139,28 @@ const game = {
 
     carDefs: [
         { name: "Civic '99", hp: 160, weight: 1100, grip: 0.95, redline: 8200, price: 0,
-          color: '#fdd835', secondaryColor: '#333', type: 'hatch',
+          color: '#fdd835', secondaryColor: '#333', type: 'hatch', art: 'civic_ek',
           gearRatios: [0, 3.8, 2.4, 1.7, 1.3, 1.0], finalDrive: 4.0, dragArea: 0.72 },
         { name: "S14 Drift", hp: 280, weight: 1250, grip: 1.0, redline: 7500, price: 8000,
-          color: '#9c27b0', secondaryColor: '#4a148c', type: 'sedan',
+          color: '#9c27b0', secondaryColor: '#4a148c', type: 'sedan', art: 's14',
           gearRatios: [0, 3.5, 2.2, 1.6, 1.2, 1.0], finalDrive: 3.9, dragArea: 0.75 },
         { name: "Mustang GT", hp: 420, weight: 1650, grip: 1.0, redline: 6500, price: 15000,
-          color: '#b71c1c', secondaryColor: '#fff', type: 'muscle',
+          color: '#b71c1c', secondaryColor: '#fff', type: 'muscle', art: 'mustang_sn95',
           gearRatios: [0, 3.3, 2.0, 1.4, 1.1, 0.9], finalDrive: 3.55, dragArea: 0.82 },
         { name: "R34 GTR", hp: 550, weight: 1500, grip: 1.35, redline: 8500, price: 35000,
-          color: '#0288d1', secondaryColor: '#01579b', type: 'sedan',
+          color: '#0288d1', secondaryColor: '#01579b', type: 'sedan', art: 'r34',
           gearRatios: [0, 3.8, 2.5, 1.9, 1.5, 1.2, 0.9], finalDrive: 3.55, dragArea: 0.78 },
         { name: "Supra Mk4", hp: 600, weight: 1550, grip: 1.2, redline: 7800, price: 42000,
-          color: '#e65100', secondaryColor: '#ff9800', type: 'super',
+          color: '#e65100', secondaryColor: '#ff9800', type: 'super', art: 'supra_a80',
           gearRatios: [0, 3.2, 2.1, 1.5, 1.1, 0.9, 0.7], finalDrive: 3.27, dragArea: 0.76 },
         { name: "Viper ACR", hp: 750, weight: 1480, grip: 1.45, redline: 6200, price: 65000,
-          color: '#1b5e20', secondaryColor: '#000', type: 'super',
+          color: '#1b5e20', secondaryColor: '#000', type: 'super', art: 'viper_acr',
           gearRatios: [0, 2.9, 1.9, 1.4, 1.1, 0.9, 0.7], finalDrive: 3.55, dragArea: 0.73 },
         { name: "Lambo Huracan", hp: 850, weight: 1400, grip: 1.55, redline: 9000, price: 120000,
-          color: '#76ff03', secondaryColor: '#33691e', type: 'super',
+          color: '#76ff03', secondaryColor: '#33691e', type: 'super', art: 'huracan',
           gearRatios: [0, 3.5, 2.5, 1.9, 1.5, 1.2, 1.0, 0.8], finalDrive: 3.08, dragArea: 0.70 },
         { name: "Funny Car", hp: 2500, weight: 900, grip: 2.8, redline: 9500, price: 500000,
-          color: '#311b92', secondaryColor: '#d50000', type: 'dragster',
+          color: '#311b92', secondaryColor: '#d50000', type: 'dragster', art: 'funny_car',
           gearRatios: [0, 4.0, 3.0, 2.2, 1.8, 1.5], finalDrive: 4.3, dragArea: 1.10 }
     ],
 
@@ -150,17 +207,19 @@ const game = {
             cash: this.cash,
             selectedCarIndex: this.selectedCarIndex,
             tournamentRound: this.tournamentRound,
+            quickStats: this.quickStats,
             bestET: this.bestET || null,
             currentBackground: this.currentBackground,
             ownedCars: this.ownedCars.map(car => ({
                 name: car.name, color: car.color, secondaryColor: car.secondaryColor,
-                price: car.price, type: car.type,
+                price: car.price, type: car.type, art: car.art,
                 baseHp: car.baseHp, baseRedline: car.baseRedline,
                 baseGearRatios: car.baseGearRatios, baseFinalDrive: car.baseFinalDrive,
                 baseWeight: car.baseWeight, baseGrip: car.baseGrip,
                 baseDragArea: car.baseDragArea,
                 upgrades: car.upgrades,
-                customization: car.customization // FIX: Save customization
+                tune: car.tune,
+                customization: serializeCustomization(car.customization)
             })),
             version: 3,
         };
@@ -175,6 +234,7 @@ const game = {
 
             this.cash = data.cash ?? 2500;
             this.tournamentRound = data.tournamentRound ?? 1;
+            this.quickStats = { races: 0, wins: 0, recentMargin: 0, ...(data.quickStats || {}) };
             this.bestET = data.bestET ?? null;
             this.currentBackground = data.currentBackground ?? 0;
             if (this.currentBackground >= this.backgrounds.length) this.currentBackground = 0;
@@ -184,12 +244,14 @@ const game = {
                     name: cd.name, hp: cd.baseHp, weight: cd.baseWeight,
                     grip: cd.baseGrip, redline: cd.baseRedline, price: cd.price,
                     color: cd.color, secondaryColor: cd.secondaryColor, type: cd.type,
+                    art: cd.art || this.carDefs.find(def => def.name === cd.name)?.art || cd.type,
                     gearRatios: cd.baseGearRatios, finalDrive: cd.baseFinalDrive,
-                    dragArea: cd.baseDragArea,
+                    dragArea: cd.baseDragArea, tune: cd.tune,
                 };
                 const car = new Car(def);
                 car.upgrades = cd.upgrades || car.upgrades;
-                car.customization = cd.customization || car.customization; // FIX: Load customization
+                // Player customization is intentionally stock until the player-facing garage arrives.
+                car.customization = car._stockCustomization();
                 car.applyUpgrades();
                 return car;
             });
@@ -533,7 +595,7 @@ const game = {
             }
             if (o.launched) {
                 o.clutch = 0; o.gas = 1;
-                if (o.rpm > o.redline * 0.92 && o.gear < o.gearRatios.length - 1) o.shiftUp();
+                if (o.rpm > o.redline * (o.aiShiftPoint || 0.92) && o.gear < o.gearRatios.length - 1) o.shiftUp();
                 if (o.rpm > o.redline - 100) o.rpm = o.redline - 200;
             }
             if (p.finished && !this.finished) { this.finishRace(true); return; }
@@ -573,16 +635,22 @@ const game = {
             playerTime = p.finishTime || this.raceTimer;
             reactionTime = p.reactionTime || 0;
             if (won) {
-                prize = this.raceMode === 'quick'
-                    ? 250 + Math.floor(Math.random() * 150)
-                    : 1000 * this.tournamentRound;
-                if (this.raceMode === 'tournament' && this.tournamentRound >= 8) {
-                    prize += 10000; this.tournamentRound = 1;
-                } else if (this.raceMode === 'tournament') {
+                if (this.raceMode === 'quick') {
+                    prize = 250 + Math.floor(Math.random() * 150);
+                    this.quickStats.races++;
+                    this.quickStats.wins++;
+                } else if (this.tournamentRound >= 3) {
+                    prize = this.activeTournamentTier?.prize || 5000;
+                    this.tournamentRound = 1;
+                } else {
+                    prize = 0;
                     this.tournamentRound++;
                 }
             } else {
-                prize = 50;
+                prize = this.raceMode === 'quick' ? 50 : 0;
+                if (this.raceMode === 'quick') this.quickStats.races++;
+                // A tournament loss ends the run. A new entry always starts at Heat 1.
+                if (this.raceMode === 'tournament') this.tournamentRound = 1;
             }
         }
 
@@ -821,16 +889,20 @@ const game = {
     _getCarCanvasMetrics(car) {
         const W = window.innerWidth;
         const H = window.innerHeight;
-        const camX = Math.max(0, this.playerCar.x * this.METERS_TO_PX - 180);
+        const followOffset = Math.min(W * 0.34, 220);
+        const camX = Math.max(0, this.playerCar.x * this.METERS_TO_PX - followOffset);
         const roadY = getRoadY(H, this._isMobile);
         const isPlayer = (car === this.playerCar);
         const scale = isPlayer ? 1.1 : 0.95;
         const laneY = isPlayer ? roadY + 65 : roadY + 20;
         const carX = (car.x * this.METERS_TO_PX) - camX + 40;
-        const rearWheelX = carX + 22 * scale;
-        const rearWheelY = laneY + car.squat + 34 * scale;
-        const exhaustX = carX + 2 * scale;
-        const exhaustY = laneY + car.squat + 32 * scale;
+        const art = (typeof artFor === 'function') ? artFor(car) : null;
+        const rearWheel = car._artAnchors?.rearWheel || (art ? { x: art.wheels[0][0], y: art.wheels[0][1] } : { x: 22, y: 36 });
+        const exhaust = car._artAnchors?.exhaust || (art ? { x: art.rear, y: 29 } : { x: 2, y: 29 });
+        const rearWheelX = carX + rearWheel.x * scale;
+        const rearWheelY = laneY + car.squat + rearWheel.y * scale;
+        const exhaustX = carX + exhaust.x * scale;
+        const exhaustY = laneY + car.squat + exhaust.y * scale;
         return { carX, laneY, scale, rearWheelX, rearWheelY, exhaustX, exhaustY };
     },
 
@@ -864,6 +936,32 @@ const game = {
         this._notifTimeout = setTimeout(() => { n.style.opacity = 0; n.style.top = '25%'; }, 900);
     },
 
+    performanceScore(car) {
+        const upgradeCount = Object.values(car.upgrades).reduce((sum, value) => sum + (value === true ? 1 : (typeof value === 'number' ? Math.max(0, value - 1) : 0)), 0);
+        return car.hp / car.weight + upgradeCount * 0.025;
+    },
+
+    getTournamentTier() {
+        const score = this.performanceScore(this.playerCar);
+        if (score < 0.38) return { name: 'LIGHT CUP', ai: 0.98, prize: 5000, start: 0 };
+        if (score < 0.66) return { name: 'STREET KINGS', ai: 1.03, prize: 18000, start: 2 };
+        return { name: 'PRO LEAGUE', ai: 1.08, prize: 50000, start: 4 };
+    },
+
+    getQuickOpponent() {
+        const playerScore = this.performanceScore(this.playerCar);
+        const upgrades = Object.values(this.playerCar.upgrades).reduce((sum, value) => sum + (value === true ? 1 : (typeof value === 'number' ? Math.max(0, value - 1) : 0)), 0);
+        const earlyCareer = this.quickStats.races < 4 && upgrades === 0;
+        const skill = earlyCareer ? 0.67 + this.quickStats.races * 0.035 : Math.min(1.12, 0.86 + upgrades * 0.025 + this.quickStats.wins / Math.max(1, this.quickStats.races) * 0.08);
+        const target = playerScore * skill;
+        let best = this.carDefs[0], bestGap = Infinity;
+        for (const def of this.carDefs) {
+            const gap = Math.abs(def.hp / def.weight - target);
+            if (gap < bestGap) { best = def; bestGap = gap; }
+        }
+        return { def: best, scale: skill * (0.96 + Math.random() * 0.08), reaction: earlyCareer ? 0.46 + Math.random() * .14 : Math.max(.15, .34 - upgrades * .01 + Math.random() * .08), shift: earlyCareer ? .84 : .89 + Math.min(.05, upgrades * .006) };
+    },
+
     startRaceMode(mode) {
         this.raceMode = mode;
         this.state = 'RACE';
@@ -882,24 +980,27 @@ const game = {
         // Force landscape on race start
         this.tryLockOrientation();
 
-        let oppIndex, scaleFactor = 1.0;
+        let def, scaleFactor, aiShift;
         if (mode === 'quick') {
-            const pPerf = this.playerCar.hp / this.playerCar.weight;
-            const tier = Math.floor(pPerf / 0.25);
-            oppIndex = Math.min(this.carDefs.length - 1, Math.max(0, tier + Math.floor(Math.random() * 3 - 1)));
-            scaleFactor = 0.9 + Math.random() * 0.25;
+            const match = this.getQuickOpponent();
+            def = match.def; scaleFactor = match.scale; aiShift = match.shift;
+            this._opponentReaction = match.reaction;
         } else {
-            oppIndex = Math.min(this.carDefs.length - 1, this.tournamentRound - 1);
-            scaleFactor = 0.92 + this.tournamentRound * 0.04;
+            const tier = this.getTournamentTier();
+            def = this.carDefs[Math.min(this.carDefs.length - 1, tier.start + this.tournamentRound - 1)];
+            scaleFactor = tier.ai + (this.tournamentRound - 1) * .035;
+            aiShift = .91 + this.tournamentRound * .01;
+            this._opponentReaction = Math.max(.12, .32 - this.tournamentRound * .025);
+            this.activeTournamentTier = tier;
         }
 
-        const def = this.carDefs[oppIndex];
-        this.opponentCar = new Car({ ...def, customization: null });
+        this.opponentCar = new Car({ ...def, randomizeCustomization: true });
         this.opponentCar.hp = Math.floor(def.hp * scaleFactor);
-        this.opponentCar.reactionTime = Math.max(0.08, 0.65 - scaleFactor * 0.22);
+        this.opponentCar.reactionTime = this._opponentReaction;
+        this.opponentCar.aiShiftPoint = aiShift;
 
-        document.getElementById('opp-name').innerText = this.opponentCar.name;
-        document.getElementById('tournament-round').innerText = this.tournamentRound;
+        document.getElementById('opp-name').innerText = mode === 'tournament' ? this.activeTournamentTier.name + ' • ' + this.opponentCar.name : this.opponentCar.name;
+        document.getElementById('tournament-round').innerText = mode === 'tournament' ? this.tournamentRound + '/3' : 'FREE RUN';
         document.getElementById('reaction-display').innerText = '';
         document.getElementById('race-timer').innerText = '0.000';
 
@@ -1023,6 +1124,30 @@ const game = {
                 } else {
                     this.showNotification('INSUFFICIENT FUNDS');
                 }
+            };
+            container.appendChild(div);
+        });
+
+        const heading = document.createElement('div');
+        heading.className = 'shop-item';
+        heading.style.cssText = 'border-color:#4fc3f7; color:#4fc3f7; cursor:default;';
+        heading.innerHTML = '<div class="shop-item-header"><span>TUNE SETUP</span><span style="color:#888">-3 to +3</span></div><div class="shop-item-detail">Adjustments are free. Every setting has a trade-off and is applied to your car immediately.</div>';
+        container.appendChild(heading);
+        const tunes = [
+            { key: 'finalDrive', name: 'Final Drive', low: 'Taller: higher top speed, softer launch', high: 'Shorter: stronger acceleration, lower top speed' },
+            { key: 'gearSpacing', name: 'Gear Spacing', low: 'Wider: fewer shifts, larger RPM drops', high: 'Closer: stronger pull, more shifts' },
+            { key: 'launch', name: 'Launch Bias', low: 'Gentler launch, less wheelspin control', high: 'Harder launch, more low-speed torque and grip' },
+            { key: 'aeroTrim', name: 'Aero Trim', low: 'Less drag, less high-speed stability', high: 'More stability and grip, more drag' },
+        ];
+        tunes.forEach(item => {
+            const value = car.tune[item.key] || 0;
+            const div = document.createElement('div');
+            div.className = 'shop-item';
+            div.innerHTML = '<div class="shop-item-header"><span style="color:#fff">' + item.name + '</span><span style="color:#4fc3f7">' + (value > 0 ? '+' : '') + value + '</span></div><div class="shop-item-detail">' + (value < 0 ? item.low : value > 0 ? item.high : 'Balanced') + '<br><span style="color:#666">Click to increase; Shift-click to decrease.</span></div>';
+            div.onclick = event => {
+                const delta = event.shiftKey ? -1 : 1;
+                car.tune[item.key] = Math.max(-3, Math.min(3, value + delta));
+                car.applyUpgrades(); this.scheduleSave(); this.openShop(); this.showNotification('TUNE APPLIED');
             };
             container.appendChild(div);
         });
