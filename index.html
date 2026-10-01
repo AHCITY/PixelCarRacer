@@ -65,6 +65,7 @@
             <div class="menu-btn" onclick="game.openGarage()">MY GARAGE</div>
             <div class="menu-btn" onclick="game.openDealership()">DEALERSHIP</div>
             <div class="menu-btn green" onclick="game.openShop()">PERFORMANCE &amp; TUNING</div>
+            <div class="menu-btn" style="background:#ff9800; border-color:#ffb74d;" onclick="game.openMultiplayerMenu()">MULTIPLAYER</div>
             <div class="menu-btn" onclick="game.toggleFullscreenFromMenu()" style="background:#455a64; border-color:#78909c;">⛶ FULLSCREEN</div>
         </div>
         <div style="margin-top:10px; font-size: 8px; color: #444;">W/A/S/D + SPACE to Drive</div>
@@ -104,6 +105,52 @@
         </div>
     </div>
 
+    <div id="multiplayer-menu" class="menu-overlay hidden">
+        <div class="mp-panel">
+            <div class="mp-header">
+                <h2 style="color:#ff9800; border-bottom-color:#3a2a10;">MULTIPLAYER</h2>
+                <div id="mp-net-badge" class="mp-net-badge mp-badge-off">● OFFLINE — SETUP NEEDED</div>
+            </div>
+
+            <div id="mp-status" class="mp-status" role="status" aria-live="polite"></div>
+
+            <div id="mp-choice" class="menu-grid mp-choice-grid">
+                <div class="menu-btn" onclick="MP.hostGame()">HOST RACE</div>
+                <div class="menu-btn" onclick="MP.showJoinPanel()">JOIN RACE</div>
+            </div>
+            <div class="mp-footnote">DIRECT P2P LINK &middot; FIREBASE IS ONLY USED TO INTRODUCE YOU</div>
+
+            <div id="mp-host-panel" class="mp-panel-body hidden">
+                <div class="mp-label">SHARE THIS CODE WITH YOUR OPPONENT</div>
+                <div id="mp-room-code" class="mp-code-display mp-code-live">-----</div>
+                <div class="mp-copy-btn" id="mp-copy-btn" role="button" tabindex="0">COPY CODE</div>
+                <div class="mp-hint">They pick JOIN RACE and type this code.<br>Waiting for opponent<span class="mp-dots"><span>.</span><span>.</span><span>.</span></span></div>
+            </div>
+
+            <div id="mp-join-panel" class="mp-panel-body hidden">
+                <div class="mp-label">ENTER THE HOST'S CODE</div>
+                <input id="mp-code-input" class="mp-code-input" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Match code">
+                <div class="menu-btn green mp-action" onclick="MP.joinGame()">CONNECT</div>
+                <div class="mp-hint">5 characters &middot; press ENTER to connect</div>
+            </div>
+
+            <div id="mp-ready-panel" class="mp-panel-body hidden">
+                <div id="mp-opp-card" class="mp-opp-card hidden">
+                    <span id="mp-opp-chip" class="mp-opp-chip" aria-hidden="true"></span>
+                    <span class="mp-opp-text">
+                        <span id="mp-opp-name">OPPONENT</span>
+                        <span id="mp-opp-stats" class="mp-opp-stats">&nbsp;</span>
+                    </span>
+                    <span class="mp-live-dot" aria-hidden="true"></span>
+                </div>
+                <div id="mp-ready-btn" class="menu-btn green mp-action" onclick="MP.setReady()">READY UP</div>
+                <div class="mp-hint">Both ready &rarr; the race launches by itself.<br>At the line: hold GAS (W) to rev &mdash; lights start when BOTH of you are revving.<br>Don't launch before green!</div>
+            </div>
+
+            <div class="menu-btn red mp-back" onclick="MP.leaveMultiplayer()">BACK</div>
+        </div>
+    </div>
+
     <div id="results-menu" class="menu-overlay hidden">
         <h2 id="result-title" style="font-size: 36px; margin-bottom: 10px; border:none;">VICTORY</h2>
         <div style="width: 320px; max-width: 90vw; background: #222; padding: 20px; border: 4px solid #444; box-shadow: 0 10px 20px rgba(0,0,0,0.5);">
@@ -134,5 +181,10 @@
 <script src="car.js"></script>
 <script src="renderer.js"></script>
 <script src="game.js"></script>
+
+<!-- Multiplayer: Firebase is used ONLY to exchange the WebRTC handshake (see multiplayer.js) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+<script src="multiplayer.js"></script>
 </body>
 </html>

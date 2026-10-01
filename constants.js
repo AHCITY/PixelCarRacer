@@ -29,3 +29,14 @@ const LUG_RPM_LOW  = 600;
 const LUG_RPM_HIGH = 1600;
 const IDLE_RPM     = 1000;
 const ENGINE_BRAKE_MAX = 3500;
+
+/* ─── Multiplayer ─── */
+const MP_WIN_PRIZE          = 300;  // normal multiplayer win
+const MP_LOSS_PRIZE         = 50;   // normal multiplayer loss (consolation)
+const MP_FALSE_START_BONUS  = 75;   // small reward when the OTHER player jumps the light
+const MP_START_LEAD_MS      = 300;  // buffer between "host decides to start" and the synchronized instant
+const MP_INPUT_HZ           = 20;   // how often held-input state is re-sent as a heartbeat
+const MP_SYNC_MS            = 300;  // how often an authoritative position snapshot is sent
+const MP_OUTCOME_TIMEOUT_MS = 1500; // how long to wait for the peer's race-result report before falling back to local data
+const MP_STAGING_FALLBACK_MS = 20000; // host auto-starts the countdown if the opponent never revs at the line
+const MP_DISCONNECT_GRACE_MS = 2500;  // WebRTC 'disconnected' can be transient — wait before declaring the peer lost

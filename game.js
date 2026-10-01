@@ -186,6 +186,7 @@ const game = {
         this.effects = new RaceParticles(this.ctx);
         this.setupInput();
         this.updateMenuUI();
+        if (typeof MP !== 'undefined') MP.init();
         this.lastTimestamp = performance.now();
         this.loop(this.lastTimestamp);
 
@@ -414,10 +415,10 @@ const game = {
             if (k === 's' || k === 'arrowdown') handle('brake', 1);
             if (k === ' ') { e.preventDefault(); handle('clutch', 1); }
             if (k === 'd' || k === 'arrowright') {
-                if (this.state === 'RACE') { this.playerCar.shiftUp(); this._pulseBtn('btn-up'); }
+                if (this.state === 'RACE') { this.playerShiftUp(); this._pulseBtn('btn-up'); }
             }
             if (k === 'a' || k === 'arrowleft') {
-                if (this.state === 'RACE') { this.playerCar.shiftDown(); this._pulseBtn('btn-down'); }
+                if (this.state === 'RACE') { this.playerShiftDown(); this._pulseBtn('btn-down'); }
             }
         });
 
@@ -450,7 +451,7 @@ const game = {
         if (upBtn) {
             const shiftUpHandler = e => {
                 e.preventDefault(); e.stopPropagation();
-                if (!this.paused && this.state === 'RACE') this.playerCar.shiftUp();
+                if (!this.paused && this.state === 'RACE') this.playerShiftUp();
                 this._pulseBtn('btn-up');
             };
             upBtn.addEventListener('touchstart', shiftUpHandler, { passive: false });
@@ -459,7 +460,7 @@ const game = {
         if (downBtn) {
             const shiftDownHandler = e => {
                 e.preventDefault(); e.stopPropagation();
-                if (!this.paused && this.state === 'RACE') this.playerCar.shiftDown();
+                if (!this.paused && this.state === 'RACE') this.playerShiftDown();
                 this._pulseBtn('btn-down');
             };
             downBtn.addEventListener('touchstart', shiftDownHandler, { passive: false });
@@ -487,6 +488,17 @@ const game = {
         setTimeout(() => el.classList.remove('active'), 100);
     },
 
+    // Wrap the real shift calls so multiplayer can relay them to the peer
+    // without touching Car's own shift logic at all.
+    playerShiftUp() {
+        this.playerCar.shiftUp();
+        if (this.raceMode === 'multiplayer' && typeof MP !== 'undefined') MP.sendShift('shiftUp');
+    },
+    playerShiftDown() {
+        this.playerCar.shiftDown();
+        if (this.raceMode === 'multiplayer' && typeof MP !== 'undefined') MP.sendShift('shiftDown');
+    },
+
     togglePause() {
         if (this.state !== 'RACE') return;
         this.paused = !this.paused;
@@ -510,6 +522,7 @@ const game = {
     restartRace() {
         this.paused = false;
         document.getElementById('pause-menu').classList.add('hidden');
+        if (this.raceMode === 'multiplayer') { this.quitToMenu(); return; }
         this.startRaceMode(this.raceMode);
     },
     quitToMenu() {
@@ -545,6 +558,7 @@ const game = {
     },
 
     updateRace(dt) {
+        if (this.raceMode === 'multiplayer') { this.updateMultiplayerRace(dt); return; }
         if (this.finished) return;
 
         const p = this.playerCar;
@@ -617,6 +631,125 @@ const game = {
         }
 
         if (this.effects) this.effects.update(dt);
+    },
+
+    // ─── Multiplayer race loop ───────────────────────────────────────
+    // Mirrors updateRace's state machine, but the opponent is a real
+    // remote human (driven by network input) instead of scripted AI, and
+    // the countdown is triggered by a synchronized host timestamp instead
+    // of the local player's own throttle press.
+    updateMultiplayerRace(dt) {
+        if (this.finished) return;
+        const p = this.playerCar, o = this.opponentCar;
+        if (!p || !o) return;
+
+        if (this.raceState === 'STAGING') {
+            if (typeof MP !== 'undefined' && MP.countdownStart && performance.now() >= MP.countdownStart) {
+                this.raceState = 'COUNTDOWN';
+                this.lightTimer = MP.countdownStart;
+                this.lights = 0;
+            }
+        }
+
+        if (this.raceState === 'COUNTDOWN') {
+            const elapsed = (performance.now() - this.lightTimer) / 1000;
+            this.lights = Math.min(4, Math.max(0, Math.floor(elapsed)));
+
+            if (p.speed > 0.5 || o.speed > 0.5) {
+                this.finishMultiplayerRace({ falseStart: p.speed > 0.5 });
+                return;
+            }
+
+            if (elapsed >= 4) {
+                this.raceState = 'RUNNING';
+                this.raceStartTime = performance.now();
+                this.raceTimer = 0;
+                this.showNotification('GO!');
+                this.lights = 4;
+            }
+        }
+
+        if (this.raceState === 'RUNNING') {
+            this.raceTimer = (performance.now() - this.raceStartTime) / 1000;
+            if (p.finished || o.finished) {
+                this.finishMultiplayerRace({ falseStart: false, localFinishTime: p.finished ? p.finishTime : 999 });
+                return;
+            }
+        }
+
+        p.update(dt);
+        o.update(dt);
+
+        if (p.wheelSlip > 0.4 && p.speed < 25 && p.gas > 0.5) this.createSmoke(p, p.speed < 5);
+        if (o.wheelSlip > 0.4 && o.speed < 25 && o.gas > 0.5) this.createSmoke(o, o.speed < 5);
+        if (this.effects) this.effects.update(dt);
+
+        if (typeof MP !== 'undefined') MP.tick();
+    },
+
+    finishMultiplayerRace(localReport) {
+        if (this.finished) return;
+        // Capture WHY we're finishing before overwriting the state — a fast
+        // opponent only means "false start" while the light is still counting.
+        const stateAtFinish = this.raceState;
+        this.finished = true;
+        this.raceState = 'FINISHED';
+        const p = this.playerCar, o = this.opponentCar;
+        p.brake = 1; p.gas = 0;
+        if (o) o.gas = 0;
+
+        // Normalize the time key once: callers pass localFinishTime (the car
+        // may not have finished), everything downstream — outcome exchange,
+        // winner comparison, results screen — expects .finishTime.
+        localReport.finishTime = localReport.finishTime ?? localReport.localFinishTime ?? 999;
+
+        if (typeof MP === 'undefined') { this._applyMultiplayerOutcome(localReport, { falseStart: false, finishTime: 999 }); return; }
+
+        if (localReport.forfeit || !MP._connected) {
+            // Peer is gone — nothing to negotiate. Remaining player gets the win.
+            this._applyMultiplayerOutcome(localReport, { falseStart: false, finishTime: 999 }, 'OPPONENT LEFT');
+            return;
+        }
+
+        // A pre-start finish is the ONLY case where speed > 0.5 means the peer
+        // jumped the gun. Once RUNNING, a fast replica is just... racing —
+        // never misfire the false-start bonus when their report times out.
+        const fallbackRemote = {
+            falseStart: stateAtFinish === 'COUNTDOWN' && !!(o && o.speed > 0.5),
+            finishTime: o && o.finished ? o.finishTime : 999,
+        };
+        MP.reportOutcome(localReport, fallbackRemote, (remote) => this._applyMultiplayerOutcome(localReport, remote));
+    },
+
+    _applyMultiplayerOutcome(local, remote, titleOverride) {
+        const p = this.playerCar;
+        let title, prize;
+        if (local.falseStart && remote.falseStart) { title = 'BOTH FALSE STARTED'; prize = 0; }
+        else if (local.falseStart) { title = 'FALSE START'; prize = 0; }
+        else if (remote.falseStart) { title = 'OPPONENT FALSE STARTED'; prize = MP_FALSE_START_BONUS; }
+        else if ((local.finishTime ?? 999) <= (remote.finishTime ?? 999)) { title = 'VICTORY'; prize = MP_WIN_PRIZE; }
+        else { title = 'DEFEAT'; prize = MP_LOSS_PRIZE; }
+        // Forfeit wins recompute the prize through the normal comparison above;
+        // only the headline changes so the player knows why they won.
+        if (titleOverride && prize > 0) title = titleOverride;
+
+        this.cash += prize;
+        this.scheduleSave();
+
+        setTimeout(() => {
+            this.state = 'RESULTS';
+            document.getElementById('ui-layer').classList.add('hidden');
+            document.getElementById('pause-btn').classList.add('hidden');
+            document.getElementById('results-menu').classList.remove('hidden');
+            const titleEl = document.getElementById('result-title');
+            titleEl.innerText = title;
+            titleEl.style.color = (prize > 0) ? '#4caf50' : (title === 'BOTH FALSE STARTED' ? '#ff9800' : '#f44336');
+            const ft = local.finishTime;
+            document.getElementById('result-time').innerText = (!ft || ft >= 999) ? '\u2014' : ft.toFixed(3) + 's';
+            document.getElementById('result-reaction').innerText = (!p.reactionRecorded || p.reactionTime > 10) ? '\u2014' : p.reactionTime.toFixed(3) + 's';
+            document.getElementById('result-trap').innerText = Math.round((p.trapSpeed || p.speed) * MPS_TO_MPH) + ' mph';
+            document.getElementById('result-prize').innerText = '$' + prize;
+        }, 400);
     },
 
     finishRace(won, reason) {
@@ -980,6 +1113,23 @@ const game = {
         // Force landscape on race start
         this.tryLockOrientation();
 
+        if (mode === 'multiplayer') {
+            this.opponentCar = (typeof MP !== 'undefined') ? MP.buildOpponentCar() : new Car({ randomizeCustomization: true });
+            document.getElementById('opp-name').innerText = this.opponentCar.name + ' (LIVE)';
+            document.getElementById('tournament-round').innerText = 'MULTIPLAYER';
+            document.getElementById('reaction-display').innerText = '';
+            document.getElementById('race-timer').innerText = '0.000';
+            this.playerCar.reset();
+            this.opponentCar.reset();
+            this.lights = 0;
+            this.lightTimer = 0;
+            this.raceStartTime = 0;
+            this.raceTimer = 0;
+            this.accumulator = 0;
+            if (typeof MP !== 'undefined') MP.armForRace();
+            return;
+        }
+
         let def, scaleFactor, aiShift;
         if (mode === 'quick') {
             const match = this.getQuickOpponent();
@@ -1015,6 +1165,8 @@ const game = {
     },
 
     returnToMenu() {
+        if (this.raceMode === 'multiplayer' && typeof MP !== 'undefined') MP.disconnect();
+
         if (this._pendingRotation) {
             this.currentBackground = (this.currentBackground + 1) % this.backgrounds.length;
             this._pendingRotation = false;
@@ -1151,6 +1303,13 @@ const game = {
             };
             container.appendChild(div);
         });
+    },
+
+    openMultiplayerMenu() {
+        this.menuState = 'MULTIPLAYER';
+        document.getElementById('main-menu').classList.add('hidden');
+        document.getElementById('multiplayer-menu').classList.remove('hidden');
+        if (typeof MP !== 'undefined') MP.resetMenu();
     },
 
     openDealership() {
