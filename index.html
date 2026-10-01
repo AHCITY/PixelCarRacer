@@ -17,12 +17,13 @@
     <div id="ui-layer">
         <div id="hud" class="hud hidden">
             <div id="race-stats">
-                <div style="color:#ffeb3b; font-size:12px">HEAT: <span id="tournament-round">1</span></div>
+                <div style="color:#ffeb3b; font-size:12px"><span id="tournament-round">FREE RUN</span></div>
                 <div style="color:#aaa; font-size: 9px; margin-top:5px">OPPONENT: <span id="opp-name">---</span></div>
             </div>
             <div id="race-info" style="text-align: right;">
                 <div id="race-timer" style="color:#fff; font-size: 20px;">0.000</div>
                 <div id="reaction-display" style="color:#4fc3f7; font-size: 9px; margin-top:3px;"></div>
+                <div id="mp-stage-hint" class="mp-stage-hint hidden" role="status"></div>
             </div>
         </div>
 
@@ -64,9 +65,9 @@
             <div class="menu-btn red" onclick="game.startRaceMode('tournament')">TOURNAMENT</div>
             <div class="menu-btn" onclick="game.openGarage()">MY GARAGE</div>
             <div class="menu-btn" onclick="game.openDealership()">DEALERSHIP</div>
-            <div class="menu-btn green" onclick="game.openShop()">PERFORMANCE &amp; TUNING</div>
+            <div class="menu-btn green" onclick="game.openShop()">PERFORMANCE</div>
             <div class="menu-btn" style="background:#ff9800; border-color:#ffb74d;" onclick="game.openMultiplayerMenu()">MULTIPLAYER</div>
-            <div class="menu-btn" onclick="game.toggleFullscreenFromMenu()" style="background:#455a64; border-color:#78909c;">⛶ FULLSCREEN</div>
+            <div class="menu-btn" onclick="game.toggleFullscreenFromMenu()" style="background:#455a64; border-color:#78909c;">FULLSCREEN</div>
         </div>
         <div style="margin-top:10px; font-size: 8px; color: #444;">W/A/S/D + SPACE to Drive</div>
         <div style="margin-top:6px; font-size: 7px; color: #333;"><span id="menu-record"></span></div>
@@ -77,7 +78,7 @@
         <div class="menu-grid" style="margin-top: 40px;">
             <div class="menu-btn green" onclick="game.resumeRace()">RESUME</div>
             <div class="menu-btn" onclick="game.restartRace()">RESTART</div>
-            <div class="menu-btn" onclick="game.toggleFullscreenFromMenu()" style="background:#455a64; border-color:#78909c;">⛶ FULLSCREEN</div>
+            <div class="menu-btn" onclick="game.toggleFullscreenFromMenu()" style="background:#455a64; border-color:#78909c;">FULLSCREEN</div>
             <div class="menu-btn red" onclick="game.quitToMenu()">QUIT TO MENU</div>
         </div>
         <div style="margin-top:10px; font-size: 8px; color: #444;">Press ESC to Resume</div>
@@ -85,7 +86,8 @@
 
     <div id="garage-menu" class="menu-overlay hidden">
         <h2>MY GARAGE</h2>
-        <div id="car-stats-display" class="scroll-container" style="height: 60vh;"></div>
+        <div id="car-stats-display" class="scroll-container" style="height: auto; max-height: 30vh;"></div>
+        <div id="garage-custom" class="gar-custom hidden"></div>
         <div class="menu-btn" style="margin-top: 10px; width: 200px;" onclick="game.returnToMenu()">BACK</div>
     </div>
 
@@ -114,24 +116,36 @@
 
             <div id="mp-status" class="mp-status" role="status" aria-live="polite"></div>
 
-            <div id="mp-choice" class="menu-grid mp-choice-grid">
-                <div class="menu-btn" onclick="MP.hostGame()">HOST RACE</div>
-                <div class="menu-btn" onclick="MP.showJoinPanel()">JOIN RACE</div>
+            <div id="mp-stats-line" class="mp-stats-line">NO P2P RACES YET</div>
+
+            <div id="mp-choice">
+                <div class="menu-grid mp-choice-grid">
+                    <div class="menu-btn" onclick="MP.hostGame()">HOST RACE</div>
+                    <div class="menu-btn" onclick="MP.showJoinPanel()">JOIN RACE</div>
+                </div>
+                <!-- One-time pairing: appears after the first successful race
+                     with an opponent — tap it and the next session reconnects. -->
+                <div id="mp-quick-btn" class="menu-btn green mp-quick-btn hidden" role="button" tabindex="0" onclick="MP.quickRaceAgain()">RACE LAST OPPONENT AGAIN</div>
+                <div id="mp-quick-forget" class="mp-quick-forget hidden" role="button" tabindex="0" onclick="MP.forgetPair()">FORGET SAVED OPPONENT</div>
             </div>
             <div class="mp-footnote">DIRECT P2P LINK &middot; FIREBASE IS ONLY USED TO INTRODUCE YOU</div>
+
+            <div id="mp-turn-row" class="mp-turn-row" role="switch" aria-checked="false" tabindex="0" title="If races keep failing to connect (strict NAT/corporate networks), route the peer link through a public TURN relay instead.">
+                <span class="mp-turn-label">RELAY (TURN) &mdash; FOR STRICT NETWORKS</span>
+                <span id="mp-turn-state" class="mp-turn-state">OFF</span>
+            </div>
 
             <div id="mp-host-panel" class="mp-panel-body hidden">
                 <div class="mp-label">SHARE THIS CODE WITH YOUR OPPONENT</div>
                 <div id="mp-room-code" class="mp-code-display mp-code-live">-----</div>
                 <div class="mp-copy-btn" id="mp-copy-btn" role="button" tabindex="0">COPY CODE</div>
-                <div class="mp-hint">They pick JOIN RACE and type this code.<br>Waiting for opponent<span class="mp-dots"><span>.</span><span>.</span><span>.</span></span></div>
+                <div class="mp-hint">Waiting for opponent<span class="mp-dots"><span>.</span><span>.</span><span>.</span></span></div>
             </div>
 
             <div id="mp-join-panel" class="mp-panel-body hidden">
                 <div class="mp-label">ENTER THE HOST'S CODE</div>
                 <input id="mp-code-input" class="mp-code-input" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Match code">
                 <div class="menu-btn green mp-action" onclick="MP.joinGame()">CONNECT</div>
-                <div class="mp-hint">5 characters &middot; press ENTER to connect</div>
             </div>
 
             <div id="mp-ready-panel" class="mp-panel-body hidden">
@@ -143,8 +157,45 @@
                     </span>
                     <span class="mp-live-dot" aria-hidden="true"></span>
                 </div>
+                <div class="mp-mode-row" id="mp-mode-row" aria-label="Race format">
+                    <span class="mp-mode-label">MODE</span>
+                    <div class="mp-mode-opts">
+                        <div id="mp-mode-drag" class="mp-mode-opt mp-mode-on" role="button" tabindex="0" aria-pressed="true">DRAG RACE</div>
+                        <div id="mp-mode-tour" class="mp-mode-opt" role="button" tabindex="0" aria-pressed="false">TOURNAMENT</div>
+                    </div>
+                </div>
                 <div id="mp-ready-btn" class="menu-btn green mp-action" onclick="MP.setReady()">READY UP</div>
-                <div class="mp-hint">Both ready &rarr; the race launches by itself.<br>At the line: hold GAS (W) to rev &mdash; lights start when BOTH of you are revving.<br>Don't launch before green!</div>
+                <div class="mp-hint">Hold GAS (W) at the line &mdash; lights start when both of you rev.</div>
+            </div>
+
+            <!-- Shown when Firebase answers "permission_denied": the Realtime
+                 Database rules need a one-time paste fix (see multiplayer.js). -->
+            <div id="mp-rules-panel" class="mp-panel-body hidden" aria-label="Firebase rules fix">
+                <div class="mp-label mp-rules-title">ONE-TIME FIREBASE FIX NEEDED</div>
+                <div class="mp-rules-steps">
+                    Your Realtime Database rules are blocking the multiplayer handshake.<br>
+                    1 &middot; open <span class="mp-rules-em">console.firebase.google.com</span> and pick your project<br>
+                    2 &middot; Build &rarr; Realtime Database &rarr; <span class="mp-rules-em">Rules</span> tab<br>
+                    3 &middot; paste the block below &rarr; press <span class="mp-rules-em">PUBLISH</span><br>
+                    4 &middot; come back here and hit RETRY &mdash; takes ~30 seconds
+                </div>
+                <pre id="mp-rules-json" class="mp-rules-json">{
+  "rules": {
+    "pdl_mp_rooms": {
+      "$roomCode": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    ".read": false,
+    ".write": false
+  }
+}</pre>
+                <div class="mp-rules-actions">
+                    <div class="mp-copy-btn" id="mp-rules-copy" role="button" tabindex="0">COPY RULES</div>
+                    <div class="menu-btn green mp-action" onclick="MP.retryAfterRules()">RETRY</div>
+                </div>
+                <div class="mp-hint">Only the tiny per-room mailbox is exposed &mdash;<br>your saves, cash and cars never touch Firebase.</div>
             </div>
 
             <div class="menu-btn red mp-back" onclick="MP.leaveMultiplayer()">BACK</div>
@@ -152,22 +203,33 @@
     </div>
 
     <div id="results-menu" class="menu-overlay hidden">
-        <h2 id="result-title" style="font-size: 36px; margin-bottom: 10px; border:none;">VICTORY</h2>
-        <div style="width: 320px; max-width: 90vw; background: #222; padding: 20px; border: 4px solid #444; box-shadow: 0 10px 20px rgba(0,0,0,0.5);">
-            <div style="display:flex; justify-content:space-between; margin:10px 0; font-size:12px;">
-                <span style="color:#aaa">ET:</span> <span id="result-time" style="color:#fff">0.000s</span>
+        <h2 id="result-title" class="result-title">VICTORY</h2>
+        <div id="result-record" class="result-record hidden" role="status">&#9733; NEW PERSONAL RECORD! &#9733;</div>
+        <div id="result-series" class="result-series hidden" role="status"></div>
+        <div class="results-card">
+            <div class="results-row">
+                <span class="results-label">ET:</span>
+                <span id="result-time" class="results-value">0.000s</span>
             </div>
-            <div style="display:flex; justify-content:space-between; margin:10px 0; font-size:12px;">
-                <span style="color:#aaa">Reaction:</span> <span id="result-reaction" style="color:#4fc3f7">0.000s</span>
+            <div class="results-row">
+                <span class="results-label">Reaction:</span>
+                <span id="result-reaction" class="results-value results-value-cyan">0.000s</span>
             </div>
-            <div style="display:flex; justify-content:space-between; margin:10px 0; font-size:12px;">
-                <span style="color:#aaa">Trap Speed:</span> <span id="result-trap" style="color:#fff">0 mph</span>
+            <div class="results-row">
+                <span class="results-label">Trap Speed:</span>
+                <span id="result-trap" class="results-value">0 mph</span>
             </div>
-            <div style="display:flex; justify-content:space-between; margin:15px 0 0 0; border-top: 2px dashed #444; padding-top: 10px; font-size:14px;">
-                <span style="color:#aaa">Prize:</span> <span id="result-prize" style="color:#4caf50;">$0</span>
+            <div id="result-opp-row" class="results-row results-row-opp hidden">
+                <span class="results-label">Opponent ET:</span>
+                <span id="result-opp-time" class="results-value results-value-opp">&mdash;</span>
+            </div>
+            <div class="results-row results-row-prize">
+                <span class="results-label">Prize:</span>
+                <span id="result-prize" class="results-value results-value-prize">$0</span>
             </div>
         </div>
-        <div class="menu-btn" onclick="game.returnToMenu()" style="margin-top: 20px; width: 280px; max-width: 90vw;">CONTINUE</div>
+        <div id="result-rematch-btn" class="menu-btn mp-rematch-btn hidden" onclick="game.rematch()">REMATCH</div>
+        <div class="menu-btn results-continue" onclick="game.returnToMenu()">CONTINUE</div>
     </div>
 
     <div id="notification">PERFECT SHIFT</div>

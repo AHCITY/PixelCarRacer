@@ -40,3 +40,9 @@ const MP_SYNC_MS            = 300;  // how often an authoritative position snaps
 const MP_OUTCOME_TIMEOUT_MS = 1500; // how long to wait for the peer's race-result report before falling back to local data
 const MP_STAGING_FALLBACK_MS = 20000; // host auto-starts the countdown if the opponent never revs at the line
 const MP_DISCONNECT_GRACE_MS = 2500;  // WebRTC 'disconnected' can be transient — wait before declaring the peer lost
+
+/* ─── Multiplayer Tournament (best-of-3 series) ─── */
+const MP_TOURNEY_HEAT_WIN     = 150; // per-heat payout for winning a tournament heat
+const MP_TOURNEY_HEAT_LOSS    = 50;  // per-heat consolation for losing a tournament heat
+const MP_TOURNEY_BONUS        = 600; // champion bonus for taking the series (first to 2 heat wins)
+const MP_TOURNEY_RUNNER_BONUS = 100; // runner-up bonus for losing the series

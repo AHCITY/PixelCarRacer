@@ -119,7 +119,7 @@ const game = {
     raceDistance: 402,
     lights: 0, lightTimer: 0, raceStartTime: 0, raceTimer: 0,
     raceState: 'STAGING',
-    raceMode: 'quick', tournamentRound: 1,
+    raceMode: 'quick', tournamentRound: 1, mpFormat: 'drag',
     screenShake: 0, METERS_TO_PX: 22,
     playerCar: null, opponentCar: null,
     effects: null,
@@ -136,6 +136,7 @@ const game = {
     bestET: null,
     raceResults: null,
     previewCar: null,
+    mpStats: { races: 0, wins: 0, losses: 0, bestET: null },
 
     carDefs: [
         { name: "Civic '99", hp: 160, weight: 1100, grip: 0.95, redline: 8200, price: 0,
@@ -211,6 +212,7 @@ const game = {
             quickStats: this.quickStats,
             bestET: this.bestET || null,
             currentBackground: this.currentBackground,
+            mpStats: this.mpStats,
             ownedCars: this.ownedCars.map(car => ({
                 name: car.name, color: car.color, secondaryColor: car.secondaryColor,
                 price: car.price, type: car.type, art: car.art,
@@ -238,6 +240,7 @@ const game = {
             this.quickStats = { races: 0, wins: 0, recentMargin: 0, ...(data.quickStats || {}) };
             this.bestET = data.bestET ?? null;
             this.currentBackground = data.currentBackground ?? 0;
+            this.mpStats = { races: 0, wins: 0, losses: 0, bestET: null, ...(data.mpStats || {}) };
             if (this.currentBackground >= this.backgrounds.length) this.currentBackground = 0;
 
             this.ownedCars = (data.ownedCars || []).map(cd => {
@@ -251,8 +254,9 @@ const game = {
                 };
                 const car = new Car(def);
                 car.upgrades = cd.upgrades || car.upgrades;
-                // Player customization is intentionally stock until the player-facing garage arrives.
-                car.customization = car._stockCustomization();
+                // Saved customization IDs are re-hydrated into drawable catalog
+                // entries. Old saves without customization fall back to stock.
+                car.customization = cd.customization ? hydrateCustomization(cd.customization) : car._stockCustomization();
                 car.applyUpgrades();
                 return car;
             });
@@ -723,6 +727,9 @@ const game = {
 
     _applyMultiplayerOutcome(local, remote, titleOverride) {
         const p = this.playerCar;
+        // Capture trap speed NOW — this runs synchronously at the finish, while
+        // the results screen renders ~400ms later after the car has been braking.
+        const trapSpeed = p.trapSpeed || p.speed;
         let title, prize;
         if (local.falseStart && remote.falseStart) { title = 'BOTH FALSE STARTED'; prize = 0; }
         else if (local.falseStart) { title = 'FALSE START'; prize = 0; }
@@ -732,6 +739,38 @@ const game = {
         // Forfeit wins recompute the prize through the normal comparison above;
         // only the headline changes so the player knows why they won.
         if (titleOverride && prize > 0) title = titleOverride;
+
+        // ── Best-of-3 tournament (MP) ── heats pay per race; taking the
+        // series (first to 2 heat wins) pays the champion bonus. A double
+        // false-start VOIDs the heat — nobody's tally moves, run it back.
+        let seriesInfo = null, seriesLine = '';
+        const isTour = this.raceMode === 'multiplayer' && typeof MP !== 'undefined' && MP.mpFormat === 'tournament';
+        if (isTour) {
+            const heatResult = title === 'BOTH FALSE STARTED' ? 'void'
+                : (title === 'VICTORY' || title === 'OPPONENT LEFT' || title === 'OPPONENT FALSE STARTED') ? 'won' : 'lost';
+            seriesInfo = MP.noteHeatOutcome(heatResult);
+            if (heatResult !== 'void') prize = heatResult === 'won' ? MP_TOURNEY_HEAT_WIN : MP_TOURNEY_HEAT_LOSS;
+            if (seriesInfo) {
+                if (seriesInfo.done) {
+                    const iWon = seriesInfo.myWins > seriesInfo.theirWins;
+                    prize += iWon ? MP_TOURNEY_BONUS : MP_TOURNEY_RUNNER_BONUS;
+                    seriesLine = (iWon ? 'YOU TAKE THE SERIES ' : 'OPPONENT TAKES THE SERIES ') + seriesInfo.myWins + '\u2013' + seriesInfo.theirWins;
+                } else {
+                    seriesLine = 'SERIES ' + seriesInfo.myWins + '\u2013' + seriesInfo.theirWins + ' \u00B7 HEAT ' + seriesInfo.heat + ' NEXT';
+                }
+            }
+        }
+
+        // Persistent P2P record. False-start races count toward races played,
+        // but only legitimate finishes set the best ET.
+        const s = this.mpStats;
+        s.races++;
+        if (title === 'VICTORY' || title === 'OPPONENT LEFT' || title === 'OPPONENT FALSE STARTED') s.wins++;
+        else if (title === 'DEFEAT' || title === 'FALSE START') s.losses++;
+        const legitFinish = !local.falseStart && (local.finishTime ?? 999) < 999;
+        const prevBest = s.bestET;
+        if (legitFinish && (!s.bestET || local.finishTime < s.bestET)) s.bestET = local.finishTime;
+        const isRecord = legitFinish && (!prevBest || local.finishTime < prevBest);
 
         this.cash += prize;
         this.scheduleSave();
@@ -743,13 +782,54 @@ const game = {
             document.getElementById('results-menu').classList.remove('hidden');
             const titleEl = document.getElementById('result-title');
             titleEl.innerText = title;
-            titleEl.style.color = (prize > 0) ? '#4caf50' : (title === 'BOTH FALSE STARTED' ? '#ff9800' : '#f44336');
+            // Color follows the OUTCOME, not the payout — a consolation-prize
+            // DEFEAT used to glow green like a win.
+            titleEl.style.color = (title === 'BOTH FALSE STARTED') ? '#ff9800'
+                : (title === 'VICTORY' || title === 'OPPONENT LEFT' || title === 'OPPONENT FALSE STARTED') ? '#4caf50' : '#f44336';
             const ft = local.finishTime;
             document.getElementById('result-time').innerText = (!ft || ft >= 999) ? '\u2014' : ft.toFixed(3) + 's';
             document.getElementById('result-reaction').innerText = (!p.reactionRecorded || p.reactionTime > 10) ? '\u2014' : p.reactionTime.toFixed(3) + 's';
-            document.getElementById('result-trap').innerText = Math.round((p.trapSpeed || p.speed) * MPS_TO_MPH) + ' mph';
-            document.getElementById('result-prize').innerText = '$' + prize;
+            document.getElementById('result-trap').innerText = Math.round(trapSpeed * MPS_TO_MPH) + ' mph';
+            const prizeEl = document.getElementById('result-prize');
+            prizeEl.innerText = '$' + prize;
+            prizeEl.style.color = prize > 0 ? '#4caf50' : '#888888';
+            const rec = document.getElementById('result-record');
+            if (rec) rec.classList.toggle('hidden', !isRecord);
+            // MP tournament series standing (hidden everywhere else).
+            const seriesEl = document.getElementById('result-series');
+            if (seriesEl) {
+                seriesEl.innerText = seriesLine;
+                seriesEl.classList.toggle('hidden', !seriesLine);
+                seriesEl.classList.toggle('result-series-win', !!(seriesInfo && seriesInfo.done && seriesInfo.myWins > seriesInfo.theirWins));
+                seriesEl.classList.toggle('result-series-loss', !!(seriesInfo && seriesInfo.done && seriesInfo.theirWins > seriesInfo.myWins));
+            }
+            // MP extras: opponent's ET (when known) and the rematch offer.
+            const oppRow = document.getElementById('result-opp-row');
+            const oppEl = document.getElementById('result-opp-time');
+            if (oppRow && oppEl) {
+                const ot = remote.finishTime;
+                const show = this.raceMode === 'multiplayer' && typeof ot === 'number' && ot < 999;
+                oppRow.classList.toggle('hidden', !show);
+                if (show) oppEl.innerText = ot.toFixed(3) + 's';
+            }
+            const rematchBtn = document.getElementById('result-rematch-btn');
+            if (rematchBtn) {
+                const live = this.raceMode === 'multiplayer' && typeof MP !== 'undefined' && MP._connected;
+                rematchBtn.classList.toggle('hidden', !live);
+                if (live) rematchBtn.innerText = isTour ? ((seriesInfo && seriesInfo.done) ? 'NEW SERIES' : 'NEXT HEAT') : 'REMATCH';
+            }
         }, 400);
+    },
+
+    // Offer a rematch over the still-open peer connection. Both sides land
+    // back in the ready-up lobby; the normal READY UP handshake re-launches
+    // the race — no re-hosting, no new code.
+    rematch() {
+        if (this.raceMode !== 'multiplayer' || typeof MP === 'undefined' || !MP._connected) {
+            this.returnToMenu();
+            return;
+        }
+        MP.beginRematch();
     },
 
     finishRace(won, reason) {
@@ -758,6 +838,10 @@ const game = {
         this.raceState = 'FINISHED';
 
         const p = this.playerCar, o = this.opponentCar;
+        // Capture trap speed BEFORE stopping the car — on a loss you never
+        // crossed the line (so p.trapSpeed is unset), and the old code read
+        // p.speed after zeroing it, which always printed "0 mph".
+        const trapSpeed = p.trapSpeed || p.speed;
         p.speed = 0; p.gas = 0; p.brake = 1;
         o.speed = 0; o.gas = 0;
 
@@ -787,11 +871,13 @@ const game = {
             }
         }
 
+        const prevBest = this.bestET;
         if (!reason && (!this.bestET || playerTime < this.bestET)) this.bestET = playerTime;
+        const isRecord = !reason && (!prevBest || playerTime < prevBest);
         this.cash += prize;
         this.raceResults = {
             playerTime, playerReaction: reactionTime, won,
-            opponentName: o.name, trapSpeed: p.trapSpeed || p.speed, reason
+            opponentName: o.name, trapSpeed, reason
         };
 
         if (this.raceMode === 'quick') this._pendingRotation = true;
@@ -807,8 +893,17 @@ const game = {
             title.style.color = won ? '#4caf50' : '#f44336';
             document.getElementById('result-time').innerText = playerTime.toFixed(3) + 's';
             document.getElementById('result-reaction').innerText = (reactionTime > 10.0 || reason === 'FALSE START') ? '—' : reactionTime.toFixed(3) + 's';
-            document.getElementById('result-trap').innerText = Math.round((p.trapSpeed || p.speed) * MPS_TO_MPH) + ' mph';
+            document.getElementById('result-trap').innerText = Math.round(trapSpeed * MPS_TO_MPH) + ' mph';
             document.getElementById('result-prize').innerText = '$' + prize;
+            const rec = document.getElementById('result-record');
+            if (rec) rec.classList.toggle('hidden', !isRecord);
+            // MP-only extras must never leak into single-player results.
+            const oppRow = document.getElementById('result-opp-row');
+            if (oppRow) oppRow.classList.add('hidden');
+            const seriesEl = document.getElementById('result-series');
+            if (seriesEl) seriesEl.classList.add('hidden');
+            const rematchBtn = document.getElementById('result-rematch-btn');
+            if (rematchBtn) { rematchBtn.classList.add('hidden'); rematchBtn.innerText = 'REMATCH'; }
         }, 500);
     },
 
@@ -1114,9 +1209,11 @@ const game = {
         this.tryLockOrientation();
 
         if (mode === 'multiplayer') {
+            const fmt = (typeof MP !== 'undefined' && MP.mpFormat === 'tournament') ? 'tournament' : 'drag';
+            this.mpFormat = fmt;
             this.opponentCar = (typeof MP !== 'undefined') ? MP.buildOpponentCar() : new Car({ randomizeCustomization: true });
             document.getElementById('opp-name').innerText = this.opponentCar.name + ' (LIVE)';
-            document.getElementById('tournament-round').innerText = 'MULTIPLAYER';
+            document.getElementById('tournament-round').innerText = fmt === 'tournament' ? 'HEAT ' + ((typeof MP !== 'undefined') ? MP.seriesHeat() : 1) + '/3' : 'MULTIPLAYER';
             document.getElementById('reaction-display').innerText = '';
             document.getElementById('race-timer').innerText = '0.000';
             this.playerCar.reset();
@@ -1150,7 +1247,7 @@ const game = {
         this.opponentCar.aiShiftPoint = aiShift;
 
         document.getElementById('opp-name').innerText = mode === 'tournament' ? this.activeTournamentTier.name + ' • ' + this.opponentCar.name : this.opponentCar.name;
-        document.getElementById('tournament-round').innerText = mode === 'tournament' ? this.tournamentRound + '/3' : 'FREE RUN';
+        document.getElementById('tournament-round').innerText = mode === 'tournament' ? 'HEAT ' + this.tournamentRound + '/3' : 'FREE RUN';
         document.getElementById('reaction-display').innerText = '';
         document.getElementById('race-timer').innerText = '0.000';
 
@@ -1220,6 +1317,164 @@ const game = {
             };
             container.appendChild(div);
         });
+        this._renderGarageCustomizer();
+    },
+
+    // ─── Garage customization picker ─────────────────────────────────
+    // Rows of ‹ part › steppers with a live-drawn preview canvas. Only the
+    // selected car's looks change — stats stay untouched — and every pick
+    // is persisted through the existing save pipeline (IDs only).
+    GAR_GROUPS: [
+        { key: 'rim', label: 'RIMS', group: 'rims' },
+        { key: 'spoiler', label: 'SPOILER', group: 'spoilers' },
+        { key: 'bodyKit', label: 'BODY KIT', group: 'bodyKits' },
+        { key: 'exhaust', label: 'EXHAUST', group: 'exhausts' },
+        { key: 'tire', label: 'TIRE', group: 'tires' },
+        { key: 'tint', label: 'TINT', group: 'tints' },
+        { key: 'livery', label: 'LIVERY', group: 'liveries' },
+    ],
+
+    _renderGarageCustomizer() {
+        const panel = document.getElementById('garage-custom');
+        if (!panel) return;
+        const car = this.playerCar;
+        panel.innerHTML = '';
+        if (!car) { panel.classList.add('hidden'); return; }
+        panel.classList.remove('hidden');
+
+        const title = document.createElement('div');
+        title.className = 'gar-title';
+        title.innerHTML = 'CUSTOMIZE <span class="gar-title-car">' + car.name.toUpperCase() + '</span>';
+        panel.appendChild(title);
+
+        const preview = document.createElement('canvas');
+        preview.id = 'garage-preview';
+        preview.width = 340;
+        preview.height = 120;
+        preview.setAttribute('aria-label', 'Preview of your customized car');
+        panel.appendChild(preview);
+
+        const quick = document.createElement('div');
+        quick.className = 'gar-quick';
+        const rnd = document.createElement('span');
+        rnd.className = 'menu-btn gar-quick-btn';
+        rnd.textContent = 'RANDOM';
+        rnd.setAttribute('role', 'button');
+        rnd.tabIndex = 0;
+        rnd.onclick = () => this.randomizeCustomization();
+        const stk = document.createElement('span');
+        stk.className = 'menu-btn gar-quick-btn gar-quick-stock';
+        stk.textContent = 'STOCK';
+        stk.setAttribute('role', 'button');
+        stk.tabIndex = 0;
+        stk.onclick = () => this.stockCustomization();
+        quick.appendChild(rnd);
+        quick.appendChild(stk);
+        panel.appendChild(quick);
+
+        const rows = document.createElement('div');
+        rows.className = 'gar-rows';
+        this.GAR_GROUPS.forEach(({ key, label, group }) => {
+            const list = window.CUSTOMIZATION[group];
+            const current = car.customization[key] || list[0];
+            const row = document.createElement('div');
+            row.className = 'gar-row';
+
+            const prev = document.createElement('span');
+            prev.className = 'gar-arrow';
+            prev.textContent = '\u25C0';
+            prev.setAttribute('role', 'button');
+            prev.setAttribute('aria-label', 'Previous ' + label.toLowerCase());
+            prev.tabIndex = 0;
+            prev.onclick = () => this.cycleCustomization(key, -1);
+
+            const next = document.createElement('span');
+            next.className = 'gar-arrow';
+            next.textContent = '\u25B6';
+            next.setAttribute('role', 'button');
+            next.setAttribute('aria-label', 'Next ' + label.toLowerCase());
+            next.tabIndex = 0;
+            next.onclick = () => this.cycleCustomization(key, 1);
+
+            const lab = document.createElement('span');
+            lab.className = 'gar-label';
+            lab.textContent = label;
+
+            const val = document.createElement('span');
+            val.className = 'gar-value';
+            val.textContent = String(current.name || current.id || 'stock').toUpperCase();
+
+            row.appendChild(prev);
+            row.appendChild(lab);
+            row.appendChild(val);
+            row.appendChild(next);
+            rows.appendChild(row);
+        });
+        panel.appendChild(rows);
+
+        const hint = document.createElement('div');
+        hint.className = 'gar-hint';
+        hint.textContent = 'LOOKS ONLY — STATS NEVER CHANGE';
+        panel.appendChild(hint);
+
+        this._drawGaragePreview();
+    },
+
+    _drawGaragePreview() {
+        const canvas = document.getElementById('garage-preview');
+        if (!canvas || !this.playerCar) return;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Showroom spotlight glow
+        const glow = ctx.createRadialGradient(canvas.width / 2, canvas.height * 0.62, 8, canvas.width / 2, canvas.height * 0.62, 170);
+        glow.addColorStop(0, 'rgba(255,255,255,0.10)');
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        const scale = 2.9;
+        ctx.translate((canvas.width - 104 * scale) / 2, canvas.height - 44 * scale - 6);
+        ctx.scale(scale, scale);
+        Renderer.drawCar(ctx, this.playerCar, 0, 0);
+        ctx.restore();
+        // Frame line
+        ctx.strokeStyle = '#2c2f38';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+    },
+
+    cycleCustomization(key, dir) {
+        const car = this.playerCar;
+        if (!car || !car.customization) return;
+        const meta = this.GAR_GROUPS.find(g => g.key === key);
+        if (!meta) return;
+        const list = window.CUSTOMIZATION[meta.group];
+        if (!list || !list.length) return;
+        const idx = Math.max(0, list.findIndex(item => item === car.customization[key] || (item.id && item.id === car.customization[key]?.id)));
+        const next = list[(idx + dir + list.length) % list.length];
+        car.customization[key] = next;
+        this.showNotification(meta.label + ': ' + String(next.name || next.id).toUpperCase());
+        this.scheduleSave();
+        this._renderGarageCustomizer();
+    },
+
+    randomizeCustomization() {
+        const car = this.playerCar;
+        if (!car) return;
+        car.customization = car._randomCustomization();
+        this.showNotification('RANDOM BUILD');
+        this.scheduleSave();
+        this._renderGarageCustomizer();
+    },
+
+    stockCustomization() {
+        const car = this.playerCar;
+        if (!car) return;
+        car.customization = car._stockCustomization();
+        this.showNotification('STOCK PARTS');
+        this.scheduleSave();
+        this._renderGarageCustomizer();
     },
 
     openShop() {
