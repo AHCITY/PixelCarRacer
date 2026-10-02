@@ -36,21 +36,16 @@
                 <div class="btn btn-pedal clutch" id="btn-clutch">CLU<span class="key">(SPC)</span></div>
                 <div class="btn btn-pedal brake" id="btn-brake">BRAKE<span class="key">(S)</span></div>
                 <div class="btn btn-pedal gas" id="btn-gas">GAS<span class="key">(W)</span></div>
+                <div class="btn btn-pedal btn-nos hidden" id="btn-nos">NOS<span class="key">(X)</span><span class="nos-gauge" aria-hidden="true"><span class="nos-fill" id="nos-fill"></span></span></div>
             </div>
         </div>
     </div>
 
     <div id="pause-btn" class="hidden" onclick="game.togglePause()">||</div>
 
-    <div id="rotate-prompt">
-        <div class="rotate-icon">📱</div>
-        <div class="rotate-title">ROTATE YOUR<br>DEVICE</div>
-        <div class="rotate-sub">This game requires landscape mode.<br>Please rotate your phone to continue.</div>
-    </div>
-
     <div id="fullscreen-prompt">
         <div class="fs-title">FULLSCREEN?</div>
-        <div class="fs-sub">For the best racing experience, play in fullscreen. You can toggle this later from the pause menu.</div>
+        <div class="fs-sub">BEST PLAYED IN FULLSCREEN</div>
         <div class="fs-buttons">
             <button class="fs-btn yes" id="fs-yes-btn">YES</button>
             <button class="fs-btn no"  id="fs-no-btn">NO</button>
@@ -59,18 +54,23 @@
 
     <div id="main-menu" class="menu-overlay">
         <h1>PIXEL<br>DRAG LEGENDS</h1>
-        <div style="color:#4caf50; font-size: 14px; position:absolute; top: max(15px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); background:#000; padding:5px 10px; border:1px solid #333;">CASH: $<span id="menu-cash">0</span></div>
+        <div id="menu-profile" class="pf-chip" role="button" tabindex="0" onclick="Profile.openPanel()" aria-label="Open driver profile">
+            <span class="mp-avatar pf-chip-avatar"></span>
+            <span id="menu-profile-name" class="pf-chip-name">DRIVER</span>
+        </div>
+        <div id="menu-cash-box" style="color:#4caf50; font-size: 14px; position:absolute; top: max(15px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); background:#000; padding:5px 10px; border:1px solid #333;">CASH: $<span id="menu-cash">0</span></div>
         <div class="menu-grid">
             <div class="menu-btn" onclick="game.startRaceMode('quick')">QUICK RACE</div>
             <div class="menu-btn red" onclick="game.startRaceMode('tournament')">TOURNAMENT</div>
             <div class="menu-btn" onclick="game.openGarage()">MY GARAGE</div>
-            <div class="menu-btn" onclick="game.openDealership()">DEALERSHIP</div>
+            <div class="menu-btn" onclick="game.openDealership()">SHOWROOM</div>
             <div class="menu-btn green" onclick="game.openShop()">PERFORMANCE</div>
             <div class="menu-btn" style="background:#ff9800; border-color:#ffb74d;" onclick="game.openMultiplayerMenu()">MULTIPLAYER</div>
-            <div class="menu-btn" onclick="game.toggleFullscreenFromMenu()" style="background:#455a64; border-color:#78909c;">FULLSCREEN</div>
+            <div class="menu-btn ghost-btn" id="ghost-race-btn" style="grid-column: 1 / -1;" role="button" tabindex="0" onclick="game.startGhostRace()">GHOST RACE</div>
+            <div class="menu-btn" onclick="game.toggleFullscreenFromMenu()" style="background:#455a64; border-color:#78909c; grid-column: 1 / -1;">FULLSCREEN</div>
         </div>
-        <div style="margin-top:10px; font-size: 8px; color: #444;">W/A/S/D + SPACE to Drive</div>
-        <div style="margin-top:6px; font-size: 7px; color: #333;"><span id="menu-record"></span></div>
+        <div id="menu-record" class="menu-record" role="status" aria-label="Personal best elapsed time"></div>
+        <div id="menu-settings-btn" class="menu-settings-btn" role="button" tabindex="0" aria-label="Open settings" onclick="game.openSettings()">&#9881; SETTINGS</div>
     </div>
 
     <div id="pause-menu" class="menu-overlay hidden">
@@ -78,15 +78,48 @@
         <div class="menu-grid" style="margin-top: 40px;">
             <div class="menu-btn green" onclick="game.resumeRace()">RESUME</div>
             <div class="menu-btn" onclick="game.restartRace()">RESTART</div>
+            <div class="menu-btn" id="pause-sound-btn" onclick="game.toggleSound()">SOUND: ON</div>
+            <div class="menu-btn" id="pause-music-btn" onclick="game.toggleMusic()">MUSIC: ON</div>
             <div class="menu-btn" onclick="game.toggleFullscreenFromMenu()" style="background:#455a64; border-color:#78909c;">FULLSCREEN</div>
             <div class="menu-btn red" onclick="game.quitToMenu()">QUIT TO MENU</div>
         </div>
-        <div style="margin-top:10px; font-size: 8px; color: #444;">Press ESC to Resume</div>
+        <div class="pause-vols">
+            <div class="pause-vol-row">
+                <label class="pause-vol-label" for="pause-sfx-vol">SOUND VOL</label>
+                <input type="range" id="pause-sfx-vol" class="pause-vol pause-vol-sfx" min="0" max="100" step="5" value="55" aria-label="Sound volume" oninput="game.setSfxVolume(this.value / 100)">
+            </div>
+            <div class="pause-vol-row">
+                <label class="pause-vol-label" for="pause-music-vol">MUSIC VOL</label>
+                <input type="range" id="pause-music-vol" class="pause-vol pause-vol-music" min="0" max="100" step="5" value="42" aria-label="Music volume" oninput="game.setMusicVolume(this.value / 100)">
+            </div>
+        </div>
+    </div>
+
+    <!-- Main-menu settings — the SAME persisted volume/mute state the pause
+         menu edits, exposed before you ever start a race. The sliders share
+         ids-free duplicates that game._refreshVolumeSliders() keeps in sync. -->
+    <div id="settings-menu" class="menu-overlay hidden">
+        <h2>SETTINGS</h2>
+        <div class="menu-grid settings-grid">
+            <div class="menu-btn green" id="set-sound-btn" role="button" tabindex="0" onclick="game.toggleSound()">SOUND: ON</div>
+            <div class="menu-btn" id="set-music-btn" role="button" tabindex="0" onclick="game.toggleMusic()">MUSIC: ON</div>
+        </div>
+        <div class="pause-vols">
+            <div class="pause-vol-row">
+                <label class="pause-vol-label" for="set-sfx-vol">SOUND VOL</label>
+                <input type="range" id="set-sfx-vol" class="pause-vol pause-vol-sfx" min="0" max="100" step="5" value="55" aria-label="Sound volume" oninput="game.setSfxVolume(this.value / 100)">
+            </div>
+            <div class="pause-vol-row">
+                <label class="pause-vol-label" for="set-music-vol">MUSIC VOL</label>
+                <input type="range" id="set-music-vol" class="pause-vol pause-vol-music" min="0" max="100" step="5" value="42" aria-label="Music volume" oninput="game.setMusicVolume(this.value / 100)">
+            </div>
+        </div>
+        <div class="menu-btn settings-back" role="button" tabindex="0" onclick="game.closeSettings()">BACK</div>
     </div>
 
     <div id="garage-menu" class="menu-overlay hidden">
         <h2>MY GARAGE</h2>
-        <div id="car-stats-display" class="scroll-container" style="height: auto; max-height: 30vh;"></div>
+        <div id="car-stats-display" class="scroll-container garage-list"></div>
         <div id="garage-custom" class="gar-custom hidden"></div>
         <div class="menu-btn" style="margin-top: 10px; width: 200px;" onclick="game.returnToMenu()">BACK</div>
     </div>
@@ -128,7 +161,6 @@
                 <div id="mp-quick-btn" class="menu-btn green mp-quick-btn hidden" role="button" tabindex="0" onclick="MP.quickRaceAgain()">RACE LAST OPPONENT AGAIN</div>
                 <div id="mp-quick-forget" class="mp-quick-forget hidden" role="button" tabindex="0" onclick="MP.forgetPair()">FORGET SAVED OPPONENT</div>
             </div>
-            <div class="mp-footnote">DIRECT P2P LINK &middot; FIREBASE IS ONLY USED TO INTRODUCE YOU</div>
 
             <div id="mp-turn-row" class="mp-turn-row" role="switch" aria-checked="false" tabindex="0" title="If races keep failing to connect (strict NAT/corporate networks), route the peer link through a public TURN relay instead.">
                 <span class="mp-turn-label">RELAY (TURN) &mdash; FOR STRICT NETWORKS</span>
@@ -149,13 +181,24 @@
             </div>
 
             <div id="mp-ready-panel" class="mp-panel-body hidden">
-                <div id="mp-opp-card" class="mp-opp-card hidden">
-                    <span id="mp-opp-chip" class="mp-opp-chip" aria-hidden="true"></span>
-                    <span class="mp-opp-text">
-                        <span id="mp-opp-name">OPPONENT</span>
-                        <span id="mp-opp-stats" class="mp-opp-stats">&nbsp;</span>
-                    </span>
-                    <span class="mp-live-dot" aria-hidden="true"></span>
+                <div class="mp-lobby-cards">
+                    <div id="mp-me-card" class="mp-lobby-card mp-lobby-card-me">
+                        <span id="mp-me-avatar" class="mp-avatar" aria-hidden="true"></span>
+                        <span class="mp-lobby-text">
+                            <span id="mp-me-name">YOU</span>
+                            <span id="mp-me-car" class="mp-lobby-sub">&nbsp;</span>
+                        </span>
+                        <canvas id="mp-me-preview" class="mp-car-preview" width="188" height="58" aria-label="Your car preview"></canvas>
+                    </div>
+                    <div id="mp-opp-card" class="mp-lobby-card mp-lobby-card-opp hidden">
+                        <span id="mp-opp-avatar" class="mp-avatar" aria-hidden="true"></span>
+                        <span class="mp-lobby-text">
+                            <span id="mp-opp-name">OPPONENT</span>
+                            <span id="mp-opp-stats" class="mp-lobby-sub">&nbsp;</span>
+                        </span>
+                        <canvas id="mp-opp-preview" class="mp-car-preview" width="188" height="58" aria-label="Opponent car preview"></canvas>
+                        <span class="mp-live-dot" aria-hidden="true"></span>
+                    </div>
                 </div>
                 <div class="mp-mode-row" id="mp-mode-row" aria-label="Race format">
                     <span class="mp-mode-label">MODE</span>
@@ -165,47 +208,67 @@
                     </div>
                 </div>
                 <div id="mp-ready-btn" class="menu-btn green mp-action" onclick="MP.setReady()">READY UP</div>
-                <div class="mp-hint">Hold GAS (W) at the line &mdash; lights start when both of you rev.</div>
+                <div class="mp-hint">REV (W) AT THE LINE TO START THE LIGHTS</div>
             </div>
 
-            <!-- Shown when Firebase answers "permission_denied": the Realtime
-                 Database rules need a one-time paste fix (see multiplayer.js). -->
-            <div id="mp-rules-panel" class="mp-panel-body hidden" aria-label="Firebase rules fix">
-                <div class="mp-label mp-rules-title">ONE-TIME FIREBASE FIX NEEDED</div>
-                <div class="mp-rules-steps">
-                    Your Realtime Database rules are blocking the multiplayer handshake.<br>
-                    1 &middot; open <span class="mp-rules-em">console.firebase.google.com</span> and pick your project<br>
-                    2 &middot; Build &rarr; Realtime Database &rarr; <span class="mp-rules-em">Rules</span> tab<br>
-                    3 &middot; paste the block below &rarr; press <span class="mp-rules-em">PUBLISH</span><br>
-                    4 &middot; come back here and hit RETRY &mdash; takes ~30 seconds
-                </div>
-                <pre id="mp-rules-json" class="mp-rules-json">{
-  "rules": {
-    "pdl_mp_rooms": {
-      "$roomCode": {
-        ".read": true,
-        ".write": true
-      }
-    },
-    ".read": false,
-    ".write": false
-  }
-}</pre>
-                <div class="mp-rules-actions">
-                    <div class="mp-copy-btn" id="mp-rules-copy" role="button" tabindex="0">COPY RULES</div>
-                    <div class="menu-btn green mp-action" onclick="MP.retryAfterRules()">RETRY</div>
-                </div>
-                <div class="mp-hint">Only the tiny per-room mailbox is exposed &mdash;<br>your saves, cash and cars never touch Firebase.</div>
-            </div>
+            <!-- Multiplayer problems surface as a clear status line; Firebase
+                 rules are managed in the user's own console, never in-game. -->
 
             <div class="menu-btn red mp-back" onclick="MP.leaveMultiplayer()">BACK</div>
         </div>
+    </div>
+
+    <!-- Driver profile: identity layer (name + avatar + record + friends). -->
+    <div id="profile-menu" class="menu-overlay hidden">
+        <h2 style="color:#ff9800">DRIVER PROFILE</h2>
+        <div class="pf-panel">
+            <div class="pf-top">
+                <span id="profile-avatar" class="mp-avatar pf-avatar" role="button" tabindex="0" onclick="Profile.pickAvatar()" aria-label="Change avatar (upload an image)"></span>
+                <div class="pf-id-block">
+                    <div id="profile-stats" class="pf-stats">&nbsp;</div>
+                    <div class="pf-id-row">
+                        <span class="pf-id-label">PROFILE ID</span>
+                        <span id="profile-id-copy" class="pf-copy-icon" role="button" tabindex="0" onclick="Profile.copyId()" aria-label="Copy Profile ID to clipboard">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M5 15V5a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="2.4"/></svg>
+                        </span>
+                        <span id="profile-id" class="pf-id">&mdash;</span>
+                    </div>
+                </div>
+            </div>
+            <div class="pf-row">
+                <input id="profile-name-input" class="mp-code-input pf-name-input" maxlength="14" placeholder="NAME" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Driver name">
+                <div class="menu-btn green pf-btn" onclick="Profile.saveName()">SAVE NAME</div>
+            </div>
+            <div class="pf-row">
+                <div class="menu-btn pf-btn" onclick="Profile.pickAvatar()">UPLOAD AVATAR</div>
+                <div class="menu-btn red pf-btn" onclick="Profile.removeAvatar()">REMOVE</div>
+            </div>
+            <input type="file" id="profile-avatar-file" accept="image/*" class="pf-file" aria-hidden="true" tabindex="-1">
+            <div id="profile-cloud-status" class="pf-cloud">&nbsp;</div>
+            <div class="pf-section-label">LINK AN ACCOUNT</div>
+            <div class="pf-link-row" id="pf-link-row"></div>
+            <div class="pf-section-label">FRIENDS</div>
+            <div class="pf-row pf-friend-add">
+                <input id="friend-add-input" class="mp-code-input fr-add-input" maxlength="19" placeholder="FRIEND CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Friend code (Profile ID)">
+                <div class="menu-btn green pf-btn" onclick="Friends.addByInput()">ADD</div>
+            </div>
+            <div id="friends-list" class="fr-list" role="list" aria-label="Friends"></div>
+        </div>
+        <div class="menu-btn red mp-back" onclick="Profile.closePanel()">BACK</div>
     </div>
 
     <div id="results-menu" class="menu-overlay hidden">
         <h2 id="result-title" class="result-title">VICTORY</h2>
         <div id="result-record" class="result-record hidden" role="status">&#9733; NEW PERSONAL RECORD! &#9733;</div>
         <div id="result-series" class="result-series hidden" role="status"></div>
+        <div id="result-winner" class="result-winner hidden">
+            <span id="result-winner-av" class="mp-avatar result-winner-av" aria-hidden="true"></span>
+            <span id="result-winner-text" class="result-winner-text">
+                <span class="result-winner-caption">WINNER</span>
+                <span id="result-winner-name" class="result-winner-name">&mdash;</span>
+                <span class="result-winner-car"><i id="result-winner-chip" class="result-winner-chip" aria-hidden="true"></i><span id="result-winner-carname">&mdash;</span></span>
+            </span>
+        </div>
         <div class="results-card">
             <div class="results-row">
                 <span class="results-label">ET:</span>
@@ -220,7 +283,7 @@
                 <span id="result-trap" class="results-value">0 mph</span>
             </div>
             <div id="result-opp-row" class="results-row results-row-opp hidden">
-                <span class="results-label">Opponent ET:</span>
+                <span id="result-opp-label" class="results-label">Opponent ET:</span>
                 <span id="result-opp-time" class="results-value results-value-opp">&mdash;</span>
             </div>
             <div class="results-row results-row-prize">
@@ -229,6 +292,7 @@
             </div>
         </div>
         <div id="result-rematch-btn" class="menu-btn mp-rematch-btn hidden" onclick="game.rematch()">REMATCH</div>
+        <div id="result-ghost-again-btn" class="menu-btn ghost-btn results-ghost-again hidden" onclick="game.raceGhostAgain()">RACE GHOST AGAIN</div>
         <div class="menu-btn results-continue" onclick="game.returnToMenu()">CONTINUE</div>
     </div>
 
@@ -236,13 +300,38 @@
     <div id="save-indicator">SAVED</div>
 </div>
 
+<!-- Non-blocking landscape hint for portrait phones — the game itself now
+     renders rotated (playable either way); this banner just nudges. -->
+<div id="rotate-prompt" role="button" tabindex="0" onclick="game.dismissRotateHint()" aria-label="Dismiss rotate hint">
+    <span class="rotate-icon" aria-hidden="true">📱</span>
+    <span class="rotate-title">ROTATE FOR THE CLASSIC VIEW</span>
+</div>
+
 <!-- Modular Scripts -->
 <script src="constants.js"></script>
 <script src="save-system.js"></script>
 <script src="particles.js"></script>
+<script src="sfx.js"></script>
+<script src="car-art.js"></script>
 <script src="car.js"></script>
 <script src="renderer.js"></script>
+<script src="profile.js"></script>
+<script src="friends.js"></script>
 <script src="game.js"></script>
+
+<!-- ===================================================================
+     DEV TOOLS — DELIBERATELY NOT LOADED HERE.
+     This is the file you ship. It must not contain the cheats in ANY
+     form: a browser game gives its source to every player, so nothing
+     referenced here can be kept secret by being hidden. Absence is the
+     only real protection.
+     To get the cheat panel, open index.dev.html (generated by
+     tools/make_dev_page.mjs) or uncomment the line below locally.
+     Before shipping: confirm this file still has no active devtools
+     reference, and do NOT deploy devtools.js or index.dev.html.
+     ===================================================================
+<script src="devtools.js"></script>
+-->
 
 <!-- Multiplayer: Firebase is used ONLY to exchange the WebRTC handshake (see multiplayer.js) -->
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>

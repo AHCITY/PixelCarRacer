@@ -17,10 +17,22 @@
  *
  * ─── Firebase setup ────────────────────────────────────────────────────
  *  The config below is already filled in (project: pixelcarracer).
- *  Access to the tiny room mailbox under pdl_mp_rooms/<code> is granted
- *  by the Realtime Database rules configured in YOUR Firebase console —
- *  the game never shows or ships rules text; multiplayer simply degrades
- *  to a clear error line if the rules deny access.
+ *  One thing left to verify on YOUR Firebase console:
+ *
+ *  Realtime Database → "Rules" tab — use something like:
+ *
+ *     {
+ *       "rules": {
+ *         "pdl_mp_rooms": {
+ *           "$roomCode": { ".read": true, ".write": true }
+ *         },
+ *         ".read": false,
+ *         ".write": false
+ *       }
+ *     }
+ *
+ *     This only exposes a scratch "mailbox" per room code — nothing about
+ *     the player's save data, cash, etc. ever touches Firebase.
  *
  * If the config is blanked out or Firebase can't be reached, the
  * Multiplayer menu shows a friendly "OFFLINE" badge instead of breaking
@@ -62,21 +74,6 @@ function withTimeout(promise, ms) {
 // can take several seconds on slow networks) but still bounded so the UI
 // can't hang forever. A live permission_denied reply arrives in milliseconds.
 const MP_FB_WATCHDOG_MS = 10000;
-/* How long to wait for the data channels to actually open. Firebase reads
-   are already watchdogged, but nothing guarded the ICE/DTLS phase: a peer
-   that vanished mid-handshake, a rejected answer (see the reconnect proof
-   mismatch), or a network that black-holes STUN left the lobby sitting on
-   "WAITING FOR OPPONENT..." forever with no error and no way to tell a
-   slow connect from a dead one. Cleared by _onChannelOpen(). */
-const MP_CONNECT_TIMEOUT_MS = 25000;
-/* Backpressure thresholds for the unreliable state channel, in bytes.
-   Payloads here are ~60 bytes, so the old single 48 KB guard tolerated
-   roughly 800 queued ticks — about 2.5 s of input before it engaged, which
-   is exactly the latency the guard exists to prevent. The soft threshold
-   sheds `input` (cheap to lose, re-sent constantly); the hard one sheds
-   everything including `sync`, so a genuinely wedged buffer still drains. */
-const MP_STATE_BUFFER_MAX = 16384;
-const MP_STATE_BUFFER_HARD = 65536;
 
 const MP = {
     roomPath: 'pdl_mp_rooms',
@@ -99,6 +96,7 @@ const MP = {
     _peerLostHandled: false,
     _discGraceTimer: null,
     _lobbyResetToken: 0,
+    _lastSetupAction: null,
     challenge: null,           // reconnect challenge we expect the peer to answer
     _expectedProof: null,      // hash(pairId, challenge) the guest's answer must carry
     _myOfferSdp: null,         // our own SDP while hosting a reconnect (yield detection)
@@ -106,7 +104,6 @@ const MP = {
 
     // ---- race/lobby state ----
     remoteLoadout: null,
-    remoteProfile: null,       // peer's driver profile {id, name, av} — shared over P2P
     _remoteOutcome: null,      // peer's race report, may arrive before ours is requested
 
     // ---- lobby format + tournament series ----
@@ -124,21 +121,6 @@ const MP = {
     _pongSamples: [],
     _lastGas: null, _lastBrake: null, _lastClutch: null,
     _lastInputSend: 0, _lastSync: 0,
-    // Replica position-rate budget (see _applySync): _lastSyncX is the
-    // position at the previous ACCEPTED sync and _lastSyncAt its timestamp,
-    // so progress is validated per unit of REAL elapsed time. undefined =
-    // "no previous sync", which seeds the budget from the live position.
-    _lastSyncX: undefined, _lastSyncAt: 0,
-    // Peer pause state (see pausedTick / sendPause). We do not freeze our
-    // own sim when the peer pauses — they only stop driving.
-    remotePaused: false, _pausedSince: 0, _lastPausedBeat: 0,
-    _pausedSent: null,
-    // Replica correction drained in tick(). Declared here (it used to be
-    // created lazily on first assignment).
-    _syncErr: 0,
-    // Monotonic guard against reordered/replayed snapshots on the
-    // UNORDERED channel.
-    _lastSyncT: 0,
 
     init() {
         this._wireUI();
@@ -155,27 +137,81 @@ const MP = {
     // means we REACHED Firebase but the Realtime Database rules said no — very
     // different from being offline, so it gets its own message.
     _fbErrorMessage(e) {
-        if (this._isRulesError(e)) return 'FIREBASE RULES BLOCK ACCESS — UPDATE YOUR DATABASE RULES';
+        if (this._isRulesError(e)) return 'FIREBASE RULES BLOCK ACCESS — ALLOW pdl_mp_rooms (SEE multiplayer.js)';
         return 'COULD NOT REACH FIREBASE — CHECK CONNECTION';
     },
 
     // True when Firebase ANSWERED but the Realtime Database rules denied the
-    // read/write. That is a console-side fix, not a network problem — the
-    // player just gets a clear status line (no rules text is ever shown in-game).
+    // read/write. That is a one-time console fix, not a network problem — the
+    // menu opens a guided panel (mp-rules-panel) with copyable rules instead
+    // of a dead-end message.
     _isRulesError(e) {
         const code = String((e && e.code) || '').toUpperCase();
         const text = String((e && (e.message || e)) || '').toLowerCase();
         return code.includes('PERMISSION') || text.includes('permission_denied');
     },
 
-    // Shared funnel for HOST/JOIN setup failures: tear down and surface a
-    // clear status line, keeping the choice panel usable for a retry.
+    // Shared funnel for HOST/JOIN setup failures. Network problems get a
+    // status line; rules problems get the guided one-time fix panel.
     _handleSetupError(e) {
         this.disconnect();
         this._show('mp-host-panel', false);
         this._show('mp-join-panel', false);
+        if (this._isRulesError(e)) {
+            this.status('FIREBASE RULES BLOCK ACCESS — ONE-TIME FIX NEEDED', 'err');
+            this._show('mp-choice', false);
+            this._show('mp-rules-panel', true);
+            return;
+        }
         this.status(this._fbErrorMessage(e), 'err');
         this._show('mp-choice', true);
+    },
+
+    // RETRY on the rules panel — re-attempt whatever the player was doing.
+    retryAfterRules() {
+        this._show('mp-rules-panel', false);
+        if (this._lastSetupAction === 'join') {
+            this._show('mp-choice', true);
+            this._show('mp-join-panel', true);
+            this.status('RULES UPDATED? PRESS CONNECT AGAIN', '');
+            const input = document.getElementById('mp-code-input');
+            if (input) setTimeout(() => input.focus(), 50);
+        } else if (this._lastSetupAction === 'quick') {
+            this.status('RULES UPDATED? TRYING AGAIN...', 'busy');
+            const saved = this._savedPair();
+            if (saved) this.hostReconnect(saved); else this.hostGame();
+        } else {
+            this.status('RULES UPDATED? TRYING AGAIN...', 'busy');
+            this.hostGame();
+        }
+    },
+
+    // Copies the ready-to-paste Realtime Database rules onto the clipboard.
+    copyRules() {
+        const el = document.getElementById('mp-rules-json');
+        const text = el ? el.textContent : '';
+        if (!text) return;
+        const flash = () => {
+            const btn = document.getElementById('mp-rules-copy');
+            if (!btn) return;
+            btn.textContent = 'COPIED!';
+            setTimeout(() => { btn.textContent = 'COPY RULES'; }, 1200);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(flash).catch(() => {});
+        } else {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                flash();
+            } catch (e) {}
+        }
     },
 
     ensureFirebase() {
@@ -277,24 +313,19 @@ const MP = {
         if (this.pc || this.roomRef) return;
         if (!this.ensureFirebase()) { this.status('MULTIPLAYER NOT CONFIGURED — SEE multiplayer.js', 'err'); return; }
         this.isHost = true;
+        this._lastSetupAction = 'quick';
         this.roomCode = saved.code;
         this.status('RECONNECTING TO ' + String(saved.name || 'OPPONENT').toUpperCase() + '...', 'busy');
 
         try {
-            // roomRef MUST exist before the PeerConnection is constructed.
-            // iceCandidatePoolSize starts gathering immediately, and
-            // onicecandidate drops candidates when roomRef is null — so
-            // building the PC first silently threw away exactly the
-            // prefetched pool candidates the pool exists to provide, and the
-            // reconnect handshake fell back to a full STUN round-trip.
-            this.roomRef = this.db.ref(this.roomPath + '/' + saved.code);
-            this.roomRef.onDisconnect().remove();
-
             this._createPeerConnection();
             this.eventsChannel = this.pc.createDataChannel('events');
             this.stateChannel = this.pc.createDataChannel('state', { ordered: false, maxRetransmits: 0 });
             this._wireChannel(this.eventsChannel);
             this._wireChannel(this.stateChannel);
+
+            this.roomRef = this.db.ref(this.roomPath + '/' + saved.code);
+            this.roomRef.onDisconnect().remove();
 
             this.challenge = this._randomHex(8);
             this._expectedProof = this._pairProof(saved.pairId, this.challenge);
@@ -302,19 +333,10 @@ const MP = {
             const offer = await this.pc.createOffer();
             await this.pc.setLocalDescription(offer);
             this._myOfferSdp = offer.sdp;
-            // The challenge travels INSIDE the offer object, not as a
-            // sibling key. When both players hit "race again", each host
-            // writes the whole room node, and Firebase applies those writes
-            // field-by-field with no ordering guarantee — so a top-level
-            // `challenge` could come from the host whose `offer` was LOST.
-            // The guest then proved itself against one host's challenge
-            // while the surviving host verified against its own, the answer
-            // was dropped as a proof mismatch, and the reconnect hung
-            // forever with no timeout and no error. Nesting it makes offer
-            // and challenge a single atomic value that always agree.
             await this.roomRef.set({
+                challenge: this.challenge,
                 ts: Date.now(),
-                offer: { sdp: offer.sdp, type: offer.type, challenge: this.challenge },
+                offer: { sdp: offer.sdp, type: offer.type },
             });
 
             this.roomRef.child('guestCandidates').on('child_added', snap => this._addRemoteCandidate(snap.val()));
@@ -377,9 +399,9 @@ const MP = {
         if (this.pc || this.roomRef) return;
         if (!this.ensureFirebase()) { this.status('MULTIPLAYER NOT CONFIGURED — SEE multiplayer.js', 'err'); return; }
         this.isHost = false;
+        this._lastSetupAction = 'quick';
         this.roomCode = saved.code;
         this.status('OPPONENT IS STARTING A RACE — CONNECTING...', 'busy');
-        this._armConnectWatchdog();
 
         const ref = this.db.ref(this.roomPath + '/' + saved.code);
         let room = null;
@@ -407,9 +429,7 @@ const MP = {
             this._flushPendingCandidates();
             const answer = await this.pc.createAnswer();
             await this.pc.setLocalDescription(answer);
-            // Read the challenge from the OFFER, not a sibling key — see the note at
-            // the host write. They are written as one atomic value.
-            const proof = this._pairProof(saved.pairId, (room.offer && room.offer.challenge) || '');
+            const proof = this._pairProof(saved.pairId, room.challenge || '');
             await this.roomRef.child('answer').set({ sdp: answer.sdp, type: answer.type, proof });
         } catch (e) {
             console.warn('Reconnect join failed:', e);
@@ -507,13 +527,14 @@ const MP = {
         this._show('mp-host-panel', false);
         this._show('mp-join-panel', false);
         this._show('mp-ready-panel', false);
+        this._show('mp-rules-panel', false);
         const card = document.getElementById('mp-opp-card');
         if (card) card.classList.add('hidden');
         this._refreshStatsLine();
         const badge = document.getElementById('mp-net-badge');
         if (badge) {
             const ok = this.firebaseConfigured();
-            badge.textContent = ok ? '\u25CF READY TO CONNECT' : '\u25CF OFFLINE \u2014 SETUP NEEDED';
+            badge.textContent = ok ? '\u25CF P2P ONLINE' : '\u25CF OFFLINE — SETUP NEEDED';
             badge.classList.toggle('mp-badge-on', ok);
             badge.classList.toggle('mp-badge-off', !ok);
         }
@@ -528,18 +549,12 @@ const MP = {
         const statsLine = document.getElementById('mp-stats-line');
         if (!statsLine) return;
         const s = game.mpStats;
-        let text;
         if (s && s.races > 0) {
             const et = s.bestET ? ' \u00B7 BEST ' + s.bestET.toFixed(3) + 's' : '';
-            text = 'P2P RECORD ' + s.wins + 'W \u2013 ' + s.losses + 'L (' + s.races + ' RACES)' + et;
+            statsLine.textContent = 'P2P RECORD ' + s.wins + 'W \u2013 ' + s.losses + 'L (' + s.races + ' RACES)' + et;
         } else {
-            text = 'NO P2P RACES YET \u2014 HOST OR JOIN TO START A RECORD';
+            statsLine.textContent = 'NO P2P RACES YET \u2014 HOST OR JOIN TO START A RECORD';
         }
-        // Live best-of-3 standing while a series is in progress.
-        if (this._connected && this.mpFormat === 'tournament' && this.series) {
-            text += ' \u00B7 SERIES ' + this.series.myWins + '\u2013' + this.series.theirWins;
-        }
-        statsLine.textContent = text;
     },
 
     _show(id, visible) {
@@ -574,6 +589,13 @@ const MP = {
         }
         const copyBtn = document.getElementById('mp-copy-btn');
         if (copyBtn) copyBtn.addEventListener('click', () => this.copyRoomCode());
+        const rulesCopy = document.getElementById('mp-rules-copy');
+        if (rulesCopy) {
+            rulesCopy.addEventListener('click', () => this.copyRules());
+            rulesCopy.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.copyRules(); }
+            });
+        }
         // Quick-reconnect + FORGET: click lives in the markup; keyboard here.
         const quickBtn = document.getElementById('mp-quick-btn');
         if (quickBtn) quickBtn.addEventListener('keydown', e => {
@@ -667,6 +689,7 @@ const MP = {
         this._show('mp-host-panel', true);
         this.status('CREATING ROOM...', 'busy');
         this.isHost = true;
+        this._lastSetupAction = 'host';
 
         try {
             const code = await this._reserveRoomCode();
@@ -695,7 +718,6 @@ const MP = {
         }
 
         this.status('WAITING FOR OPPONENT...', 'busy');
-        this._armConnectWatchdog();
 
         this.roomRef.child('answer').on('value', async snap => {
             const answer = snap.val();
@@ -714,6 +736,7 @@ const MP = {
         if (code.length < 4) { this.status('ENTER A VALID CODE', 'err'); return; }
         this.isHost = false;
         this.roomCode = code;
+        this._lastSetupAction = 'join';
         this.status('LOOKING FOR ROOM...', 'busy');
 
         const ref = this.db.ref(this.roomPath + '/' + code);
@@ -759,12 +782,7 @@ const MP = {
 
     _createPeerConnection() {
         this._peerLostHandled = false;
-        // iceCandidatePoolSize: pre-allocate/resolve a candidate BEFORE the
-        // offer is created, taking STUN off the critical handshake path.
-        const cfg = {
-            iceServers: this.turnEnabled() ? this.iceServers.concat(MP_TURN_SERVERS) : this.iceServers,
-            iceCandidatePoolSize: 2,
-        };
+        const cfg = { iceServers: this.turnEnabled() ? this.iceServers.concat(MP_TURN_SERVERS) : this.iceServers };
         this.pc = new RTCPeerConnection(cfg);
         this.pc.onicecandidate = e => {
             if (!e.candidate || !this.roomRef) return;
@@ -840,29 +858,8 @@ const MP = {
         channel.onmessage = e => {
             let msg;
             try { msg = JSON.parse(e.data); } catch (err) { return; }
-            // Dispatch is guarded too. A malformed peer message that throws
-            // inside _handleMessage would otherwise propagate out of this
-            // handler and take the whole connection's message pump with it —
-            // every LATER message silently ignored for the rest of the race.
-            // Dropping one bad message is always better than dropping all.
-            try { this._handleMessage(msg); }
-            catch (err) { console.warn('[MP] dropped a bad message:', msg && msg.type, err); }
+            this._handleMessage(msg);
         };
-    },
-
-    // Fails a handshake that never completes, so the player gets an actionable
-    // message instead of an indefinite wait. Deliberately does NOT tear the
-    // PeerConnection down on its own — the host may still be mid-gather on a
-    // slow link, so this only surfaces the failure and leaves recovery to
-    // the player (BACK, then retry).
-    _armConnectWatchdog() {
-        if (this._connectWatchdog) clearTimeout(this._connectWatchdog);
-        this._connectWatchdog = setTimeout(() => {
-            this._connectWatchdog = 0;
-            if (this._connected) return;
-            this.status('COULD NOT CONNECT — CHECK NETWORK, OR TURN RELAY', 'err');
-            game.showNotification('CONNECTION TIMED OUT');
-        }, MP_CONNECT_TIMEOUT_MS);
     },
 
     _onChannelOpen() {
@@ -871,7 +868,6 @@ const MP = {
         if (this._connected) return;
         this._connected = true;
         this._stopReconnectListener();
-        if (this._connectWatchdog) { clearTimeout(this._connectWatchdog); this._connectWatchdog = 0; }
 
         // The direct P2P link is up — the Firebase "mailbox" is no longer
         // needed, so tidy it up after a short grace period.
@@ -881,29 +877,10 @@ const MP = {
             setTimeout(() => { ref.off(); if (wasHost) ref.remove().catch(() => {}); }, 4000);
         }
 
-        this._show('mp-choice', false);
         this._show('mp-host-panel', false);
         this._show('mp-join-panel', false);
         this._show('mp-ready-panel', true);
         this.status('CONNECTED! EXCHANGING CAR DATA...', 'ok');
-
-        // BUGFIX: the READY UP button is hidden in setReady() once pressed and
-        // only re-shown in the rematch lobby. A player who raced, left, and
-        // then rejoined the same code used to land in a lobby with NO button.
-        // A fresh connection always starts with the button visible.
-        const readyBtn = document.getElementById('mp-ready-btn');
-        if (readyBtn) {
-            readyBtn.classList.remove('hidden');
-            readyBtn.classList.remove('mp-ready-glow');
-            readyBtn.removeAttribute('aria-hidden');
-        }
-        this.localReady = false;
-        this.remoteReady = false;
-
-        // Fresh connection → clear last session's opponent card + profile.
-        this.remoteProfile = null;
-        const oppCard = document.getElementById('mp-opp-card');
-        if (oppCard) oppCard.classList.add('hidden');
 
         // One-time pairing: both sides remember {code, pairId} so future
         // sessions can reconnect WITHOUT typing the code again. The pairId
@@ -911,66 +888,8 @@ const MP = {
         if (this.isHost) this.sendEvent({ type: 'pair', pairId: this._currentPairId(), code: this.roomCode });
         this._refreshQuickPair();
 
-        // Introduce the drivers, then the cars — the profile arrives as its
-        // own event so a peer can greet you by name even before loadouts land.
-        if (typeof Profile !== 'undefined') this.sendEvent({ type: 'profile', p: Profile.share() });
-        this._renderLobbySelf();
-
         this.sendLoadout();
         this.calibrateClock();
-    },
-
-    // Fills the "YOU" lobby card: avatar, driver name and a live showroom
-    // preview of the car you are bringing (customization included).
-    _renderLobbySelf() {
-        const card = document.getElementById('mp-me-card');
-        if (!card) return;
-        if (typeof Profile !== 'undefined') {
-            const av = document.getElementById('mp-me-avatar');
-            if (av) Profile.renderAvatar(av, { name: Profile.name(), av: Profile.avatar() }, '#2e7d32');
-            const nameEl = document.getElementById('mp-me-name');
-            if (nameEl) nameEl.textContent = Profile.name().toUpperCase();
-        }
-        if (game.playerCar) {
-            const carEl = document.getElementById('mp-me-car');
-            if (carEl) {
-                const paint = (typeof game.paintName === 'function') ? game.paintName(game.playerCar.color) : '';
-                carEl.textContent = String(game.playerCar.name).toUpperCase() + (paint ? ' \u00B7 ' + paint : '');
-            }
-            this._renderUpgradeBadges('mp-me-card', game.playerCar.upgrades);
-            if (typeof game.renderLobbyCar === 'function') game.renderLobbyCar('mp-me-preview', game.playerCar);
-        }
-    },
-
-    // Small TURBO/NOS stage chips under a lobby card's car line. The loadout
-    // payload already carries `upgrades`, so both drivers' hardware shows in
-    // the lobby with ZERO protocol changes. Row removed when nothing to show.
-    _renderUpgradeBadges(cardId, upgrades) {
-        const textCol = document.querySelector('#' + cardId + ' .mp-lobby-text');
-        if (!textCol) return;
-        let row = textCol.querySelector('.mp-upg-row');
-        const t = (upgrades && typeof upgrades.turbo === 'number') ? Math.max(0, Math.min(3, upgrades.turbo | 0)) : 0;
-        const n = (upgrades && typeof upgrades.nos === 'number') ? Math.max(0, Math.min(3, upgrades.nos | 0)) : 0;
-        if (!t && !n) { if (row) row.remove(); return; }
-        if (!row) {
-            row = document.createElement('span');
-            row.className = 'mp-upg-row';
-            textCol.appendChild(row);
-        }
-        const ROMAN = ['', 'I', 'II', 'III'];
-        row.innerHTML = '';
-        if (t) {
-            const b = document.createElement('span');
-            b.className = 'mp-upg-badge mp-upg-turbo';
-            b.textContent = 'TURBO ' + ROMAN[t];
-            row.appendChild(b);
-        }
-        if (n) {
-            const b = document.createElement('span');
-            b.className = 'mp-upg-badge mp-upg-nos';
-            b.textContent = 'NOS ' + ROMAN[n];
-            row.appendChild(b);
-        }
     },
 
     setReady() {
@@ -998,7 +917,6 @@ const MP = {
     disconnect() {
         this._connected = false;
         this._launched = false;
-        this.remoteProfile = null;
         this.localReady = false;
         this.remoteReady = false;
         this.localRevved = false;
@@ -1010,11 +928,6 @@ const MP = {
         this._pendingCandidates = null;
         this._peerLostHandled = true; // we're tearing down on purpose
         if (this._discGraceTimer) { clearTimeout(this._discGraceTimer); this._discGraceTimer = null; }
-        if (this._connectWatchdog) { clearTimeout(this._connectWatchdog); this._connectWatchdog = 0; }
-        this.remotePaused = false;
-        this._pausedSince = 0;
-        this._pausedSent = null;
-        this._lastPausedBeat = 0;
         if (this.eventsChannel) { try { this.eventsChannel.close(); } catch (e) {} this.eventsChannel = null; }
         if (this.stateChannel) { try { this.stateChannel.close(); } catch (e) {} this.stateChannel = null; }
         if (this.pc) { try { this.pc.close(); } catch (e) {} this.pc = null; }
@@ -1025,6 +938,7 @@ const MP = {
         this.roomCode = null;
         this.remoteLoadout = null;
         this._pongSamples = [];
+        this._lastSetupAction = null;
         this.challenge = null;
         this._expectedProof = null;
         this._myOfferSdp = null;
@@ -1059,35 +973,10 @@ const MP = {
 
     // ───────────────────────────────────────────── Messaging ─────────
     sendEvent(obj) {
-        const dc = this.eventsChannel;
-        if (!dc || dc.readyState !== 'open') return;
-        // Reliable/ordered SCTP buffers without bound, so a send on a channel
-        // that closed between the readyState check and the call throws. That
-        // exception would unwind through the caller (usually a UI handler),
-        // and these messages are all load-bearing (loadout, ready, outcome).
-        // Never let a closed channel take the game down.
-        try { dc.send(JSON.stringify(obj)); } catch (e) { /* channel closed mid-send */ }
+        if (this.eventsChannel && this.eventsChannel.readyState === 'open') this.eventsChannel.send(JSON.stringify(obj));
     },
     sendState(obj) {
-        const dc = this.stateChannel;
-        if (!dc || dc.readyState !== 'open') return;
-        // Backpressure guard: a network hiccup can make the send buffer grow
-        // faster than SCTP drains it. Queuing more stale input/sync ticks
-        // behind it only adds latency — the freshest packet is the ONLY one
-        // worth sending on an unreliable channel, so drop and let the next
-        // tick (≤50ms away) carry newer data instead.
-        //
-        // `sync` is the load-bearing message: it is what keeps the remote
-        // replica's position honest, and losing it desyncs the opponent's
-        // view of us. Input is a held state that is re-sent on every change
-        // and on a 20 Hz heartbeat, so it is the safe thing to sacrifice. A
-        // single shared drop previously discarded both together, which meant
-        // a congested pipe silently degraded positions to nothing.
-        const congested = dc.bufferedAmount > MP_STATE_BUFFER_MAX;
-        if (congested && obj.type !== 'sync') return;
-        // Even a sync is pointless if the buffer is far past recovery.
-        if (dc.bufferedAmount > MP_STATE_BUFFER_HARD) return;
-        try { dc.send(JSON.stringify(obj)); } catch (e) { /* channel closed mid-send */ }
+        if (this.stateChannel && this.stateChannel.readyState === 'open') this.stateChannel.send(JSON.stringify(obj));
     },
 
     sendLoadout() {
@@ -1136,24 +1025,6 @@ const MP = {
         this.countdownStart = null;
         this._stagingFallbackAt = null;
         this._remoteOutcome = null;   // never leak the previous race's report
-        this._syncErr = 0;            // replica corrections start clean
-        this._lastSyncT = 0;
-        // Position-rate budget in _applySync is measured from the previous
-        // accepted sync, so both must reset here or a rematch inherits the
-        // last heat's origin and rejects the opening snapshots as too fast.
-        this._lastSyncX = undefined;
-        this._lastSyncAt = 0;
-        this.remotePaused = false;
-        this._pausedSince = 0;
-        this._pausedSent = null;
-        this._lastPausedBeat = 0;
-        // Input-send bookkeeping belongs to the previous heat too — without
-        // this the first heartbeat after a rematch can be skipped.
-        this._lastGas = null;
-        this._lastBrake = null;
-        this._lastClutch = null;
-        this._lastInputSend = 0;
-        this._lastSync = 0;
     },
 
     // ─────────────────────────────────────── Rematch ────────────────
@@ -1177,8 +1048,6 @@ const MP = {
         this.remoteRevved = false;
         this.countdownStart = null;
         this._stagingFallbackAt = null;
-        this._syncErr = 0;
-        this._lastSyncT = 0;
 
         game.state = 'MENU';
         game.menuState = 'MULTIPLAYER';
@@ -1201,23 +1070,6 @@ const MP = {
             try { btn.focus({ preventScroll: true }); } catch (e) {}
             setTimeout(() => btn.classList.remove('mp-ready-glow'), 2600);
         }
-        this._renderLobbySelf();
-        // Opponent card: re-render from the still-known loadout + profile so
-        // the lobby previews never go stale between heats.
-        if (this.remoteLoadout) {
-            const card = document.getElementById('mp-opp-card');
-            if (card) {
-                card.classList.remove('hidden');
-                if (this.remoteProfile && typeof Profile !== 'undefined') {
-                    const av = document.getElementById('mp-opp-avatar');
-                    if (av) Profile.renderAvatar(av, this.remoteProfile, (this.remoteLoadout.color) || '#546e7a');
-                }
-                if (typeof game.renderLobbyCar === 'function') {
-                    try { game.renderLobbyCar('mp-opp-preview', this.buildOpponentCar()); } catch (e) {}
-                }
-                this._renderUpgradeBadges('mp-opp-card', this.remoteLoadout.upgrades);
-            }
-        }
         this._refreshStatsLine();
         this.status(this.mpFormat === 'tournament' && this.series
             ? 'HEAT ' + this.seriesHeat() + '/3 \u00B7 FIRST TO 2 WINS \u2014 READY UP'
@@ -1232,27 +1084,6 @@ const MP = {
         if (!p) return;
         const now = performance.now();
 
-        // Ease out any pending replica position correction (set by _applySync)
-        // — spreading it over ~1/3s reads as smooth catch-up instead of the
-        // old instant 30% snap every 300ms (a visible rubber-band on the
-        // opponent preview).
-        if (this._syncErr && game.opponentCar) {
-            const o = game.opponentCar;
-            // Self-heal: a non-finite correction or replica position means
-            // something upstream produced NaN. `if (this._syncErr)` is FALSE
-            // for NaN, so without this the drain silently never runs and the
-            // replica stays broken for the rest of the race with no way back.
-            if (!Number.isFinite(this._syncErr) || !Number.isFinite(o.x)) {
-                this._syncErr = 0;
-                o.x = Number.isFinite(o.x) ? o.x : 0;
-            } else {
-                const step = this._syncErr * 0.08;
-                o.x += step;
-                this._syncErr -= step;
-                if (Math.abs(this._syncErr) < 0.01) this._syncErr = 0;
-            }
-        }
-
         if (p.gas > 0.1) this.localRevved = true;
 
         const changed = p.gas !== this._lastGas || p.brake !== this._lastBrake || p.clutch !== this._lastClutch;
@@ -1263,7 +1094,7 @@ const MP = {
         }
 
         if (now - this._lastSync > MP_SYNC_MS) {
-            this.sendState({ type: 'sync', t: now, x: p.x, speed: p.speed, rpm: p.rpm, gear: p.gear });
+            this.sendState({ type: 'sync', x: p.x, speed: p.speed, rpm: p.rpm, gear: p.gear });
             this._lastSync = now;
         }
 
@@ -1278,37 +1109,6 @@ const MP = {
                 this.beginSynchronizedCountdown();
             }
         }
-    },
-
-    // Keep the link alive while THIS player is paused.
-    //
-    // MP.tick() only runs inside the fixed physics step, so pausing stopped
-    // every heartbeat and sync. The peer had no way to tell "paused" from
-    // "hung": it kept integrating a replica that stopped receiving input, and
-    // nothing told it the race clock had been frozen. Two problems follow —
-    // a genuine freeze-frame looks identical to a dropped peer, and because
-    // game._unpauseClock() shifts raceStartTime locally, pausing was a FREE
-    // TIME OUT: you sat still, the clock you are judged by did not advance,
-    // and you resumed on track with the ground you did not cover.
-    //
-    // Called from the render loop (which keeps running while paused). It does
-    // not touch the simulation — it only proves liveness and tells the peer
-    // the race is intentionally halted.
-    pausedTick() {
-        if (!this._connected || !game.paused) return;
-        const now = performance.now();
-        if (now - (this._lastPausedBeat || 0) < 1000 / MP_INPUT_HZ) return;
-        this._lastPausedBeat = now;
-        this.sendState({ type: 'paused', t: now });
-    },
-
-    // Announce a pause/resume to the peer. Reliable channel: the peer must
-    // not learn about this from a dropped unreliable packet.
-    sendPause(paused) {
-        if (!this._connected || this._pausedSent === paused) return;
-        this._pausedSent = paused;
-        this._lastPausedBeat = 0;
-        this.sendEvent({ type: 'pause', paused: !!paused });
     },
 
     // HUD staging hint (MP only): tells each player what the light sequence
@@ -1413,12 +1213,10 @@ const MP = {
         switch (msg.type) {
             case 'loadout': {
                 this.remoteLoadout = msg.car;
-                // Remember the opponent on our saved pairing so the
-                // quick-reconnect button can greet them by name. Their driver
-                // profile name wins when it has already arrived; the car name
-                // is only the fallback.
+                // Remember the opponent's name on our saved pairing so the
+                // quick-reconnect button can greet them by car name.
                 const savedPair = this._savedPair();
-                if (savedPair && msg.car && msg.car.name && !this.remoteProfile) {
+                if (savedPair && msg.car && msg.car.name) {
                     savedPair.name = String(msg.car.name).slice(0, 24);
                     savedPair.ts = Date.now();
                     this._savePair(savedPair);
@@ -1429,78 +1227,19 @@ const MP = {
                 const card = document.getElementById('mp-opp-card');
                 if (card && msg.car) {
                     card.classList.remove('hidden');
+                    const chip = document.getElementById('mp-opp-chip');
                     const name = document.getElementById('mp-opp-name');
                     const stats = document.getElementById('mp-opp-stats');
-                    if (name && !this.remoteProfile) name.textContent = String(msg.car.name || 'UNKNOWN CAR').toUpperCase();
-                    if (stats) {
-                        stats.textContent = String(msg.car.name || '').toUpperCase() + ' \u00B7 ' +
-                            (typeof msg.car.baseHp === 'number' ? Math.round(msg.car.baseHp) + ' HP' : '---') + ' \u00B7 ' +
-                            (typeof msg.car.baseWeight === 'number' ? Math.round(msg.car.baseWeight) + ' KG' : '---');
+                    if (chip) chip.style.background = msg.car.color || '#888';
+                    if (name) name.textContent = String(msg.car.name || 'UNKNOWN CAR').toUpperCase();
+                    if (stats && typeof msg.car.baseHp === 'number' && typeof msg.car.baseWeight === 'number') {
+                        stats.textContent = Math.round(msg.car.baseHp) + ' HP \u00B7 ' + Math.round(msg.car.baseWeight) + ' KG';
                     }
-                    // Live showroom preview: the peer's real customization
-                    // re-hydrated into a display car, so their rims/spoiler/
-                    // livery choices are visible BEFORE the race starts.
-                    if (typeof game.renderLobbyCar === 'function') {
-                        try { game.renderLobbyCar('mp-opp-preview', this.buildOpponentCar()); } catch (e) {}
-                    }
-                    this._renderUpgradeBadges('mp-opp-card', msg.car.upgrades);
                 }
                 const rp = document.getElementById('mp-ready-panel');
-                // `msg.car` is guaranteed by the guard above, but this line
-                // sat OUTSIDE it and threw a TypeError inside the data
-                // channel onmessage handler on a malformed loadout — which
-                // killed the message pump for every later message too.
-                if (rp && msg.car && !rp.classList.contains('hidden')) {
+                if (rp && !rp.classList.contains('hidden')) {
                     this.status('OPPONENT IS DRIVING A ' + String(msg.car.name || 'CAR').toUpperCase(), 'ok');
                 }
-                break;
-            }
-            case 'profile': {
-                const p = msg.p;
-                if (p && p.id) {
-                    this.remoteProfile = {
-                        id: String(p.id).slice(0, 40),
-                        name: String(p.name || '').slice(0, 20),
-                        av: (typeof p.av === 'string' && p.av.length <= 60000) ? p.av : null,
-                    };
-                    // Greet the opponent by their DRIVER name on the saved
-                    // pairing (overrides the earlier car-name fallback).
-                    if (this.remoteProfile.name) {
-                        const savedPair = this._savedPair();
-                        if (savedPair) {
-                            savedPair.name = this.remoteProfile.name;
-                            savedPair.ts = Date.now();
-                            this._savePair(savedPair);
-                            this._refreshQuickPair();
-                        }
-                    }
-                    const card = document.getElementById('mp-opp-card');
-                    if (card) {
-                        card.classList.remove('hidden');
-                        if (typeof Profile !== 'undefined') {
-                            const av = document.getElementById('mp-opp-avatar');
-                            if (av) Profile.renderAvatar(av, this.remoteProfile,
-                                (this.remoteLoadout && this.remoteLoadout.color) || '#546e7a');
-                        }
-                        const name = document.getElementById('mp-opp-name');
-                        if (name && this.remoteProfile.name) name.textContent = this.remoteProfile.name.toUpperCase();
-                    }
-                    // Friends: the moment we know who we're connected to, a
-                    // queued friend request addressed to THEM can be delivered.
-                    if (typeof Friends !== 'undefined') Friends.onPeerProfile(this.remoteProfile);
-                }
-                break;
-            }
-            case 'friendReq': {
-                if (typeof Friends !== 'undefined') Friends._handlePeerRequest(msg.p);
-                break;
-            }
-            case 'friendAcc': {
-                if (typeof Friends !== 'undefined') Friends._handlePeerAccept(msg);
-                break;
-            }
-            case 'friendRemove': {
-                if (typeof Friends !== 'undefined') Friends._handlePeerRemove(msg);
                 break;
             }
             case 'pair': {
@@ -1527,21 +1266,6 @@ const MP = {
                 this.status(this.localReady ? 'BOTH READY \u2014 STARTING...' : 'OPPONENT IS READY \u2014 PRESS READY UP', 'ok');
                 this._maybeLaunch();
                 break;
-            case 'pause':
-                // The peer paused. We deliberately do NOT freeze our own
-                // simulation for them \u2014 that would let one player decide the
-                // race is stopped for both. They simply tell us they are not
-                // driving, so we can say so instead of watching a stalled
-                // opponent and assuming a disconnect.
-                if (msg.paused) {
-                    this.remotePaused = true;
-                    this._pausedSince = performance.now();
-                    if (game.state === 'RACE') game.showNotification('OPPONENT PAUSED');
-                } else {
-                    this.remotePaused = false;
-                    this._pausedSince = 0;
-                }
-                break;
             case 'rematch':
                 // Peer wants another race — accept by returning to the lobby.
                 // (If we already left, the channel is closed and this never
@@ -1554,12 +1278,9 @@ const MP = {
             case 'input':
                 this.remoteRevved = this.remoteRevved || msg.gas > 0.1;
                 if (game.opponentCar) {
-                    // Clamp remote inputs into their real range — a tampered
-                    // peer sending gas=999 would multiply its wheel force
-                    // a thousandfold. Everything outside [0,1] is noise.
-                    game.opponentCar.gas = Math.min(1, Math.max(0, +msg.gas || 0));
-                    game.opponentCar.brake = Math.min(1, Math.max(0, +msg.brake || 0));
-                    game.opponentCar.clutch = Math.min(1, Math.max(0, +msg.clutch || 0));
+                    game.opponentCar.gas = msg.gas;
+                    game.opponentCar.brake = msg.brake;
+                    game.opponentCar.clutch = msg.clutch;
                 }
                 break;
             case 'sync':
@@ -1574,10 +1295,9 @@ const MP = {
             case 'countdown': {
                 // Convert the host's timestamp into OUR performance.now()
                 // timeline. Never let it land in the past — a start already
-                // due just begins on the next frame instead of skipping lights
-                // — and never absurdly far in the future either.
+                // due just begins on the next frame instead of skipping lights.
                 const localStart = Math.max(msg.hostStart - this.clockOffset, performance.now() + 50);
-                this.countdownStart = Math.min(localStart, performance.now() + 12000);
+                this.countdownStart = localStart;
                 break;
             }
             case 'ping':
@@ -1586,19 +1306,12 @@ const MP = {
             case 'pong': {
                 const now = performance.now();
                 this._pongSamples.push({ rtt: now - msg.t0, offset: msg.t1 - (msg.t0 + now) / 2 });
-                // Keep the sample window bounded — a long session ping-pongs
-                // forever and the array used to grow without limit.
-                if (this._pongSamples.length > 12) this._pongSamples.shift();
                 break;
             }
             case 'raceOutcome': {
                 const report = {
                     falseStart: !!msg.falseStart,
-                    // Sanity floor: no build in this game runs 402m in under
-                    // 2s — a faster "finish" is manipulated or corrupted, so
-                    // clamp rather than hand out a bogus loss.
-                    finishTime: (typeof msg.finishTime === 'number' && isFinite(msg.finishTime))
-                        ? Math.min(Math.max(msg.finishTime, 2), 999) : 999,
+                    finishTime: (typeof msg.finishTime === 'number' && isFinite(msg.finishTime)) ? msg.finishTime : 999,
                 };
                 if (this._outcomeResolve) {
                     const resolve = this._outcomeResolve;
@@ -1613,72 +1326,17 @@ const MP = {
         }
     },
 
-    // Corrects drift on the replicated opponent car. Large jumps snap
-    // instantly (e.g. after a dropped run of packets); small ones ease out
-    // over ~1/3s via _syncErr (drained in tick) so nothing visibly pops or
-    // rubber-bands. Unordered channel: an OLD snapshot landing after a newer
-    // one is ignored — replaying stale syncs used to drag the replica BACKWARD
-    // (the visible back-and-forth in the opponent preview).
+    // Gently corrects drift on the replicated opponent car. Large jumps
+    // snap instantly (e.g. after a dropped run of packets); small ones
+    // ease in so nothing visibly pops.
     _applySync(msg) {
         const o = game.opponentCar;
         if (!o) return;
-        const st = typeof msg.t === 'number' ? msg.t : 0;
-        if (st) {
-            if (this._lastSyncT && st <= this._lastSyncT) return;
-            this._lastSyncT = st;
-        }
-        // Plausibility clamp: a sync is at most ~MP_SYNC_MS old and these are
-        // street drag cars — anything wildly past physics is manipulated or
-        // corrupted. Clamp forward progress instead of trusting it.
-        const speed = Math.min(140, Math.max(0, +msg.speed || 0));
-        let target = +msg.x;
-        if (!isFinite(target)) return;
-        // Position is validated as a RATE, not just a ceiling. The old bound
-        // (`o.x + speed*dt*2.5 + 15`) re-based on the position it had already
-        // accepted, so it compounded: at 3.33 Hz a peer could advance ~200 m/s
-        // apparent and, because Car sets `finished` on crossing raceDistance,
-        // inflated x syncs were a direct win button.
-        //
-        // Now progress is measured against the position at the PREVIOUS
-        // accepted sync, over the time that actually elapsed, and scaled by
-        // the reported speed. Anything beyond that is not physics, so it is
-        // discarded outright rather than snapped to (a snap is exactly the
-        // rubber-band this guard exists to prevent).
-        const now = performance.now();
-        const prevX = (this._lastSyncX !== undefined) ? this._lastSyncX : o.x;
-        const prevAt = this._lastSyncAt || now;
-        const elapsed = Math.min(1.0, Math.max(MP_SYNC_MS / 1000, (now - prevAt) / 1000));
-        this._lastSyncX = o.x;
-        this._lastSyncAt = now;
-        // 1.35x headroom over the reported speed covers a legitimate corner
-        // exit, and the 0.5 m floor absorbs packet jitter at low speed.
-        const budget = speed * elapsed * 1.35 + 0.5;
-        if (target > prevX + budget) target = prevX + budget;
-        // Backward bound: a peer may not drag the replica backwards. Replay
-        // and reordering are already handled by the `t` guard above; this
-        // closes the remaining hole where target=0 yanked the car to the line.
-        if (target < prevX - budget) target = prevX - budget;
-        if (target < 0) target = 0;
-        const dx = target - o.x;
-        if (Math.abs(dx) > 3) {
-            o.x = target;
-            this._syncErr = 0;
-        } else {
-            this._syncErr = dx;
-        }
-        o.speed += (speed - o.speed) * 0.3;
-        o.rpm += (Math.min(o.redline * 1.25, Math.max(0, +msg.rpm || 0)) - o.rpm) * 0.3;
-        // Gear MUST be range-checked. An out-of-range index makes
-        // gearRatios[this.gear] undefined, so the wheel-force ratio becomes
-        // NaN, o.x goes NaN permanently, and the ease-out drain below is
-        // gated on `if (this._syncErr)` — which is false for NaN — so the
-        // replica never recovers. One hostile packet bricked the race.
-        if (typeof msg.gear === 'number') {
-            const g = Math.round(msg.gear);
-            if (Number.isFinite(g) && g >= 0 && g < o.gearRatios.length) {
-                if (g !== o.gear) o.gear = g;
-            }
-        }
+        const dx = msg.x - o.x;
+        if (Math.abs(dx) > 3) o.x = msg.x; else o.x += dx * 0.3;
+        o.speed += (msg.speed - o.speed) * 0.3;
+        o.rpm += (msg.rpm - o.rpm) * 0.3;
+        if (msg.gear !== undefined && msg.gear !== o.gear) o.gear = msg.gear;
     },
 };
 

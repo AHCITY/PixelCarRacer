@@ -12,6 +12,13 @@ html, body {
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: none;
 }
+/* A game shell, not a webpage: the body is pinned so no browser gesture
+   (rubber-band, pull-to-refresh, focus scroll) can ever move the UI. */
+body {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+}
 #game-container {
     position: relative;
     width: 100vw; height: 100vh;
@@ -66,17 +73,19 @@ canvas {
     pointer-events: none;
     display: flex; justify-content: space-between;
     align-items: flex-end;
+    gap: 10px;
+    max-width: 100%;
     z-index: 3;
 }
-.shifter-group { display: flex; flex-direction: row; gap: 10px; pointer-events: auto; }
-.pedal-group { display: flex; gap: 10px; align-items: flex-end; pointer-events: auto; }
+.shifter-group { display: flex; flex-direction: row; gap: clamp(6px, 1.4vh, 10px); pointer-events: auto; }
+.pedal-group { display: flex; gap: clamp(6px, 1.4vh, 10px); align-items: flex-end; pointer-events: auto; }
 .btn {
     background: #222;
     border: 3px solid #444;
     color: #ddd;
     border-radius: 8px;
     font-family: 'Press Start 2P', cursive;
-    font-size: 9px;
+    font-size: clamp(7px, 1.5vh, 9px);
     display: flex; flex-direction: column;
     justify-content: center; align-items: center;
     cursor: pointer;
@@ -84,7 +93,7 @@ canvas {
     box-shadow: 0 5px 0 #111;
     text-align: center;
     text-transform: uppercase;
-    padding: 6px 4px;
+    padding: clamp(4px, 1vh, 6px) 4px;
     line-height: 1.5;
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
@@ -93,15 +102,25 @@ canvas {
     box-shadow: 0 0 0 #111;
     filter: brightness(1.4);
 }
-.btn-shift { width: 62px; height: 82px; border-radius: 10px; }
-.btn-pedal { width: 64px; height: 106px; font-size: 9px; }
-.btn-pedal.brake { height: 82px; }
+/* Buttons size with the VIEWPORT HEIGHT (vh), so they shrink on short
+   landscape phones instead of overflowing or covering the road. */
+.btn-shift { width: clamp(46px, 7.4vh, 62px); height: clamp(58px, 10vh, 82px); border-radius: 10px; }
+.btn-pedal { width: clamp(48px, 7.6vh, 64px); height: clamp(74px, 13vh, 106px); font-size: clamp(7px, 1.5vh, 9px); }
+.btn-pedal.brake { height: clamp(58px, 10vh, 82px); }
 .clutch { background: #1a2a3d; border-color: #34495e; }
 .brake  { background: #4a2020; border-color: #8b3a3a; }
 .gas    { background: #17331a; border-color: #2ecc71; }
+/* Nitrous bottle — violet, clearly its own control. The gauge inside drains
+   live with the tank; the button glows only while ACTUALLY spraying. */
+.btn-nos { background: #2a1235; border-color: #8e24aa; color: #e1bee7; }
+.btn-nos .key { color: #7b4b8f; }
+.btn-nos.nos-spraying { box-shadow: 0 5px 0 #111, 0 0 12px rgba(186, 104, 200, 0.75); filter: brightness(1.35); }
+.nos-gauge { display: block; width: 72%; height: clamp(4px, 1.2vh, 7px); background: #120b18; border: 1px solid #4a2a5a; margin-top: 3px; overflow: hidden; }
+.nos-fill { display: block; height: 100%; width: 100%; background: #ba68c8; transition: width 0.12s linear; }
+.nos-fill.nos-empty { background: #4a2a5a; }
 .shift-up   { border-color: #f1c40f; color: #f1c40f; background: #2a2200; }
 .shift-down { border-color: #e74c3c; color: #e74c3c; background: #2a0a0a; }
-.btn .key { font-size: 7px; color: #666; margin-top: 2px; }
+.btn .key { font-size: clamp(5px, 1.1vh, 7px); color: #666; margin-top: 2px; }
 
 .hud {
     padding: max(18px, env(safe-area-inset-top)) max(70px, calc(env(safe-area-inset-right) + 70px)) 18px max(22px, env(safe-area-inset-left));
@@ -112,6 +131,8 @@ canvas {
     z-index: 5;
     pointer-events: none;
 }
+/* Menus are FIXED game screens: the overlay fills the stage and never
+   scrolls. Only designated lists scroll internally (see .scroll-container). */
 .menu-overlay {
     position: absolute;
     top: 0; left: 0;
@@ -119,45 +140,49 @@ canvas {
     background: rgba(10, 10, 15, 0.98);
     display: flex; flex-direction: column;
     justify-content: flex-start; align-items: center;
-    padding-top: max(40px, env(safe-area-inset-top));
+    padding-top: max(28px, env(safe-area-inset-top));
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
     pointer-events: auto;
     z-index: 10;
-    overflow-y: auto; overflow-x: hidden;
+    overflow: hidden;
+    min-height: 0;
 }
 .hidden { display: none !important; }
 h1 {
     color: #ffeb3b;
     text-shadow: 4px 4px 0 #b71c1c;
-    margin-bottom: 10px;
+    margin-bottom: clamp(6px, 1.6vh, 12px);
     text-align: center;
-    font-size: 40px;
+    font-size: clamp(22px, 5.2vh, 40px);
     line-height: 1.2;
     letter-spacing: -2px;
     transform: skew(-5deg);
 }
 h2 {
-    color: #fff; margin-bottom: 20px;
+    color: #fff; margin-bottom: clamp(10px, 2.4vh, 20px);
     text-shadow: 2px 2px 0 #000;
     text-transform: uppercase;
     border-bottom: 2px solid #333;
-    padding-bottom: 10px;
+    padding-bottom: clamp(6px, 1.4vh, 10px);
+    font-size: clamp(14px, 3vh, 22px);
     width: 80%; text-align: center;
+    flex: 0 0 auto;
 }
 .menu-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 15px;
-    margin-bottom: 20px;
-    margin-top: 140px;
+    gap: clamp(8px, 1.9vh, 15px);
+    margin-bottom: clamp(10px, 2.4vh, 20px);
+    margin-top: clamp(44px, 12vh, 140px);
     width: 250px;
     max-width: 90vw;
+    flex: 0 0 auto;
 }
 .menu-btn {
-    padding: 18px 10px;
-    font-size: 14px;
+    padding: clamp(10px, 2.2vh, 18px) 10px;
+    font-size: clamp(10px, 2.3vh, 14px);
     width: 100%;
     text-align: center;
     background: #1565c0;
@@ -173,9 +198,211 @@ h2 {
 .menu-btn:active { transform: translateX(2px); box-shadow: 0 0 0; }
 .menu-btn.red { background: #c62828; border-color: #ef5350; }
 .menu-btn.green { background: #2e7d32; border-color: #66bb6a; }
+/* Ghost race — spectral cyan, clearly its own kind of race. Dimmed until a
+   personal-best run has been recorded (button stays tappable: it explains). */
+.menu-btn.ghost-btn {
+    background: #0f3438;
+    border-color: #4dd0e1;
+    color: #b2ebf2;
+    box-shadow: 4px 4px 0 #000, 0 0 12px rgba(77, 208, 225, 0.28);
+    letter-spacing: 1px;
+}
+.menu-btn.ghost-btn:hover { background: #14494f; transform: translateX(-2px); }
+.menu-btn.ghost-btn:active { transform: translateX(2px); }
+.menu-btn.ghost-btn.ghost-empty {
+    opacity: 0.55;
+    box-shadow: 4px 4px 0 #000;
+    border-color: #2b6b73;
+    color: #7fa8ad;
+}
+.menu-btn.ghost-btn.ghost-empty:hover { background: #123c41; }
+
+/* Main-menu SETTINGS entry — a compact corner control instead of a 9th
+   menu button, so every height tier (840/560/rotated-portrait) keeps its
+   tuned rhythm untouched. Shares the pixel-panel look with the chips. */
+.menu-settings-btn {
+    position: absolute;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    right: max(18px, env(safe-area-inset-right));
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: #b0bec5;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid #37474f;
+    padding: 8px 10px;
+    cursor: pointer;
+    user-select: none; -webkit-user-select: none;
+    transition: color 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.menu-settings-btn:hover {
+    color: #ffffff;
+    border-color: #78909c;
+    box-shadow: 0 0 8px rgba(120, 144, 156, 0.35);
+}
+.menu-settings-btn:active { transform: translateY(1px); }
+.menu-settings-btn:focus-visible {
+    outline: 2px dashed #ffeb3b;
+    outline-offset: 2px;
+}
+body.mobile .menu-settings-btn { font-size: 7px; padding: 7px 8px; }
+body.mobile.portrait .menu-settings-btn {
+    bottom: max(10px, env(safe-area-inset-bottom));
+    right: max(12px, env(safe-area-inset-right));
+    padding: 6px 7px;
+}
+
+/* Narrow (non-rotated) main menus: the absolutely-placed CASH readout
+   collides with the driver chip below ~400 CSS px — stack it under the
+   chip instead. Rotated-portrait phones keep their tuned layout. */
+@media (max-width: 420px) {
+    body:not(.mobile.portrait) #menu-cash-box {
+        top: calc(max(15px, env(safe-area-inset-top)) + 92px) !important;
+    }
+}
+
+/* Main-menu SETTINGS overlay — shorter rhythm than the pause menu (no
+   race to resume) but reuses the SAME fader/toggle machinery. */
+#settings-menu h2 { margin-bottom: 4px; }
+#settings-menu .settings-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 18px;
+    width: 320px;
+    max-width: 92vw;
+}
+#settings-menu .settings-grid .menu-btn {
+    font-size: 11px;
+    white-space: nowrap;
+}
+#settings-menu .settings-back {
+    width: 200px;
+    margin-top: 14px;
+}
+@media (max-height: 560px) {
+    #settings-menu h2 { font-size: 15px; margin-bottom: 2px; }
+    #settings-menu .settings-grid { margin-top: 10px; gap: 6px; }
+    #settings-menu .menu-btn { padding: 6px 10px; font-size: 10px; }
+    #settings-menu .pause-vols { gap: 4px; margin-bottom: 4px; }
+    #settings-menu input.pause-vol { height: 18px; }
+    #settings-menu .settings-back { margin-top: 8px; padding: 6px 10px; }
+}
+
+/* Pause-menu volume sliders — pixel-arcade faders. The filled side of the
+   track is painted from game.js (linear-gradient driven by the value) so
+   the two accents (green = sound, amber = music) read at a glance. */
+.pause-vols {
+    width: 250px;
+    max-width: 90vw;
+    margin: 0 0 clamp(8px, 1.6vh, 14px);
+    display: flex;
+    flex-direction: column;
+    gap: clamp(6px, 1.2vh, 10px);
+}
+.pause-vol-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.pause-vol-label {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 8px;
+    color: #9e9e9e;
+    letter-spacing: 1px;
+    flex: 0 0 auto;
+    width: 86px;
+    white-space: nowrap;
+    text-align: right;
+    user-select: none; -webkit-user-select: none;
+}
+input.pause-vol {
+    -webkit-appearance: none; appearance: none;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 22px;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+    touch-action: none;
+}
+input.pause-vol::-webkit-slider-runnable-track {
+    height: 8px;
+    background: var(--pdl-fill, #181c24);
+    border: 1px solid #2c3240;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.6), 2px 2px 0 #000;
+}
+input.pause-vol::-moz-range-track {
+    height: 8px;
+    background: var(--pdl-fill, #181c24);
+    border: 1px solid #2c3240;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.6), 2px 2px 0 #000;
+}
+input.pause-vol::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 18px;
+    margin-top: -5px;
+    background: #4caf50;
+    border: 2px solid #0b0d10;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.45);
+}
+input.pause-vol::-moz-range-thumb {
+    width: 12px; height: 16px;
+    border-radius: 0;
+    background: #4caf50;
+    border: 2px solid #0b0d10;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.45);
+}
+input.pause-vol.pause-vol-music::-webkit-slider-thumb {
+    background: #ffb300;
+    box-shadow: 0 0 8px rgba(255, 179, 0, 0.45);
+}
+input.pause-vol.pause-vol-music::-moz-range-thumb {
+    background: #ffb300;
+    box-shadow: 0 0 8px rgba(255, 179, 0, 0.45);
+}
+input.pause-vol:focus-visible { outline: 1px dashed #ffeb3b; outline-offset: 2px; }
+
+/* Short viewports: the pause menu grew two fader rows — compress its rhythm
+   so landscape phones (480-class heights) keep the footnote on screen.
+   !important beats the h1/grid inline margins. */
+@media (max-height: 560px) {
+    #pause-menu h1 { margin-top: 12px !important; font-size: 22px !important; }
+    #pause-menu .menu-grid { margin-top: 12px !important; gap: 6px; }
+    #pause-menu .menu-btn { padding: 6px 10px; font-size: 10px; }
+    #pause-menu .pause-vols { gap: 4px; margin-bottom: 4px; }
+    #pause-menu .pause-vol-row { gap: 8px; }
+    #pause-menu input.pause-vol { height: 18px; }
+    #pause-menu input.pause-vol::-webkit-slider-thumb { width: 12px; height: 14px; margin-top: -4px; }
+    #pause-menu input.pause-vol::-moz-range-thumb { width: 10px; height: 12px; }
+}
+
+/* Mid-height viewports (800-class laptops/tablets, 561–840px): with 8 menu
+   buttons the default rhythm ends ~3px past the viewport bottom edge —
+   tighten the title + rhythm slightly so the FULLSCREEN row clears the
+   bottom padding with headroom to spare. Placed BEFORE the 560px tier so
+   short screens still get the aggressive compression below. */
+@media (max-height: 840px) {
+    #main-menu h1 { font-size: clamp(18px, 4.6vh, 34px); }
+    #main-menu .menu-grid { margin-top: clamp(28px, 9vh, 80px); }
+    #main-menu .menu-btn { padding: clamp(8px, 1.9vh, 16px) 10px; }
+}
+
+/* Short viewports (landscape phones, small laptop windows): with 8 menu
+   buttons the default rhythm overflows 480px-tall screens — compress the
+   whole main menu so every button stays on-screen and nothing scrolls. */
+@media (max-height: 560px) {
+    #main-menu h1 { font-size: clamp(16px, 4.4vh, 22px); margin-bottom: 4px; }
+    #main-menu .menu-grid { margin-top: 10px; gap: 4px; }
+    #main-menu .menu-btn { padding: 4px 8px; font-size: 9px; box-shadow: 3px 3px 0 #000; }
+    #main-menu .menu-grid ~ div { margin-top: 3px !important; }
+}
+/* Internal scrolling belongs to LISTS only — the overlay itself never
+   scrolls. min-height: 0 lets these shrink inside the flex column. */
 .scroll-container {
-    max-height: 45vh;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     width: 100%;
     display: flex; flex-direction: column;
     align-items: center;
@@ -183,16 +410,25 @@ h2 {
     scrollbar-width: thin; scrollbar-color: #555 #222;
     -webkit-overflow-scrolling: touch;
 }
+.scroll-container::-webkit-scrollbar { width: 6px; }
+.scroll-container::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+.scroll-container::-webkit-scrollbar-track { background: #222; }
+/* Garage car list: capped so the customizer below always stays visible. */
+.scroll-container.garage-list {
+    flex: 0 1 auto;
+    max-height: 24vh;
+}
 .shop-item, .car-item {
     display: flex; justify-content: space-between;
     align-items: center;
     width: 85%; max-width: 600px;
     background: #1e1e1e;
-    padding: 15px;
+    padding: clamp(9px, 1.8vh, 15px);
     margin: 6px 0;
     border: 1px solid #333;
     cursor: pointer;
     transition: 0.2s;
+    flex: 0 0 auto;
     user-select: none; -webkit-user-select: none;
 }
 .shop-item:hover, .car-item:hover { background: #2a2a2a; border-color: #666; }
@@ -211,7 +447,24 @@ h2 {
     position: absolute;
     top: 25%; left: 50%;
     transform: translateX(-50%);
-    font-size: 26px;
+    /* Two rules keep every message inside the viewport on the narrowest
+       phone:
+       1) font-size is a clamp() so it scales with the viewport, AND
+       2) the text is allowed to WRAP. `white-space: nowrap` used to sit
+          here, which silently defeated max-width (a nowrap line never
+          wraps, so max-width can never constrain it) and pushed long
+          messages off BOTH screen edges. Press Start 2P is monospace at
+          1em advance, so the longest message ("NO NITROUS — BUY A KIT IN
+          PERFORMANCE") needs ~1.36x the width of a 320px screen at the
+          old clamp floor. Wrapping is what actually fixes it; game.js
+          additionally shrinks the font for long strings so the common
+          case still lands on one line. */
+    font-size: clamp(11px, 3.2vw, 26px);
+    line-height: 1.35;
+    max-width: 90vw;
+    /* padding (not margin) so the hard text-shadow never paints outside
+       the box the browser will wrap to. */
+    padding: 0 6px;
     color: #ffeb3b;
     text-shadow: 4px 4px 0 #000;
     opacity: 0;
@@ -219,7 +472,10 @@ h2 {
     pointer-events: none;
     text-align: center;
     z-index: 20;
-    white-space: nowrap;
+    white-space: normal;
+    /* break-word so a single unbroken token can never force overflow. */
+    overflow-wrap: break-word;
+    word-break: break-word;
     font-style: italic;
 }
 #save-indicator {
@@ -232,22 +488,32 @@ h2 {
     pointer-events: none;
     z-index: 99;
 }
+/* Non-blocking landscape hint (portrait phones). The game renders rotated
+   and playable — this banner just nudges toward physical landscape and
+   auto-dismisses after 5s or on tap. Lives OUTSIDE #game-container so it
+   stays upright while the stage is rotated. */
 #rotate-prompt {
     position: fixed;
-    inset: 0;
-    background: #0a0a0f;
-    display: none;
-    flex-direction: column;
-    justify-content: center; align-items: center;
+    top: max(10px, env(safe-area-inset-top));
+    left: 50%;
+    transform: translate(-50%, -180%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(10, 10, 15, 0.96);
+    border: 1px solid #333;
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.6);
+    padding: 10px 16px;
     z-index: 99999;
     color: #ffeb3b;
-    text-align: center;
-    padding: 30px;
-    box-sizing: border-box;
+    transition: transform 0.35s ease;
+    pointer-events: none;
+    max-width: 92vw;
 }
-#rotate-prompt .rotate-icon { font-size: 64px; margin-bottom: 30px; animation: rotate-hint 2s ease-in-out infinite; }
-#rotate-prompt .rotate-title { font-size: 18px; text-shadow: 3px 3px 0 #b71c1c; margin-bottom: 16px; line-height: 1.5; }
-#rotate-prompt .rotate-sub { font-size: 10px; color: #888; line-height: 1.8; }
+#rotate-prompt.show { transform: translate(-50%, 0); pointer-events: auto; cursor: pointer; }
+#rotate-prompt .rotate-icon { font-size: 22px; animation: rotate-hint 2s ease-in-out infinite; }
+#rotate-prompt .rotate-title { font-size: 8px; color: #ffeb3b; line-height: 1.8; text-align: left; letter-spacing: 1px; text-shadow: 2px 2px 0 #000; }
+#rotate-prompt:focus-visible { outline: 2px solid #ffeb3b; outline-offset: 2px; }
 @keyframes rotate-hint { 0%, 100% { transform: rotate(0deg); } 25%, 75% { transform: rotate(-90deg); } }
 
 #fullscreen-prompt {
@@ -282,14 +548,21 @@ h2 {
 
 /* ─── MOBILE OPTIMIZATIONS ─── */
 body.mobile .controls-overlay {
-    bottom: 5px;
+    bottom: max(6px, env(safe-area-inset-bottom));
     padding: 0 8px;
 }
-body.mobile .shifter-group { gap: 6px; }
-body.mobile .pedal-group { gap: 6px; }
-body.mobile .btn-shift { width: 55px; height: 75px; font-size: 9px; border-radius: 8px; }
-body.mobile .btn-pedal { width: 58px; height: 95px; font-size: 9px; }
-body.mobile .btn-pedal.brake { height: 75px; }
+body.mobile .shifter-group { gap: 5px; }
+body.mobile .pedal-group { gap: 5px; }
+body.mobile .btn-shift { width: clamp(44px, 12vh, 55px); height: clamp(56px, 16vh, 75px); font-size: 8px; border-radius: 8px; }
+body.mobile .btn-pedal { width: clamp(46px, 12.5vh, 58px); height: clamp(66px, 20vh, 95px); font-size: 8px; }
+body.mobile .btn-pedal.brake { height: clamp(56px, 16vh, 75px); }
+/* Nitrous kit installed: the pedal row grows a 4th button — compress every
+   pedal so the row still fits 320px-wide phones (and all rotated views). */
+body.has-nos .pedal-group { gap: clamp(4px, 1vh, 7px); }
+body.has-nos .btn-pedal { width: clamp(40px, 10.5vh, 50px); }
+body.has-nos .btn-pedal.btn-nos { width: clamp(42px, 11vh, 52px); }
+body.mobile.has-nos .btn-pedal { width: clamp(38px, 10vh, 48px); }
+body.mobile.has-nos .btn-pedal.btn-nos { width: clamp(40px, 10.5vh, 50px); }
 body.mobile .btn { 
     background: rgba(30, 30, 30, 0.6); 
     backdrop-filter: blur(4px); 
@@ -297,47 +570,136 @@ body.mobile .btn {
     border-color: rgba(255, 255, 255, 0.15);
     box-shadow: 0 3px 0 rgba(0,0,0,0.5);
 }
-body.mobile .btn .key { font-size: 7px; }
+body.mobile .btn .key { font-size: 6px; }
 body.mobile .hud { 
     padding: 10px 50px 10px 10px; 
     font-size: 10px; 
 }
 body.mobile .hud #race-timer { font-size: 16px; }
 body.mobile #pause-btn { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); width: 40px; height: 40px; font-size: 14px; }
-body.mobile .menu-grid { margin-top: 80px; width: 280px; }
-body.mobile .menu-btn { padding: 16px 10px; font-size: 12px; }
-body.mobile h1 { font-size: 32px; }
-body.mobile h2 { font-size: 18px; }
-body.mobile .shop-item, body.mobile .car-item { width: 92%; padding: 12px; }
-body.mobile .scroll-container { max-height: 38vh; }
+body.mobile .menu-grid { margin-top: clamp(36px, 10vh, 80px); width: 280px; }
+body.mobile .menu-btn { padding: clamp(9px, 2.4vh, 16px) 10px; font-size: clamp(9px, 2.6vh, 12px); }
+body.mobile h1 { font-size: clamp(20px, 6vh, 32px); }
+body.mobile h2 { font-size: clamp(13px, 3.6vh, 18px); }
+body.mobile .shop-item, body.mobile .car-item { width: 92%; padding: clamp(8px, 2vh, 12px); }
+body.mobile .scroll-container.garage-list { max-height: 26vh; }
+/* Inputs ≥16px prevent iOS Safari from auto-zooming the whole stage. */
+body.mobile .mp-code-input,
+body.mobile .pf-name-input,
+body.mobile .fr-add-input { font-size: 16px; }
 
 @media (max-height: 420px) {
-    body.mobile .btn-shift { width: 50px; height: 65px; font-size: 8px; }
-    body.mobile .btn-pedal { width: 52px; height: 85px; font-size: 8px; }
-    body.mobile .btn-pedal.brake { height: 65px; }
+    body.mobile .btn-shift { width: 46px; height: 58px; font-size: 7px; }
+    body.mobile .btn-pedal { width: 48px; height: 70px; font-size: 7px; }
+    body.mobile .btn-pedal.brake { height: 58px; }
+    body.mobile.has-nos .btn-pedal { width: 41px; }
+    body.mobile.has-nos .btn-pedal.btn-nos { width: 43px; }
     body.mobile .hud { font-size: 9px; padding: 8px 45px 8px 8px; }
     body.mobile .hud #race-timer { font-size: 14px; }
-    body.mobile .menu-grid { margin-top: 50px; }
-    body.mobile h1 { font-size: 26px; }
+    body.mobile .menu-grid { margin-top: 34px; gap: 7px; }
+    body.mobile h1 { font-size: 24px; }
 }
 
-/* Strict Portrait Blocking for Mobile */
-body.mobile.portrait #rotate-prompt { display: flex; }
-body.mobile.portrait #game-container > *:not(#rotate-prompt) { visibility: hidden; }
+/* ─── PORTRAIT PHONES: RENDER THE LANDSCAPE GAME ROTATED ────────────
+   Standard mobile-game technique: the whole stage (canvas + HUD + menus)
+   keeps its landscape coordinate system and is displayed rotated 90°,
+   filling the portrait screen. Physically rotating the phone drops the
+   class and everything un-rotates through the normal resize pipeline.
+   Touch hit-testing works on transformed DOM out of the box, and a 90°
+   rotation is pixel-lossless. */
+body.mobile.portrait #game-container {
+    position: fixed;
+    top: 50%; left: 50%;
+    width: 100vh; height: 100vw;
+    width: 100dvh; height: 100dvw;
+    transform: translate(-50%, -50%) rotate(90deg);
+    /* Safe-area insets rotate with the stage: stage-top faces screen-right,
+       stage-right faces screen-bottom, stage-bottom faces screen-left and
+       stage-left faces screen-top (where the notch is). */
+    padding: env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) env(safe-area-inset-top);
+}
+
+/* Compaction for the rotated stage: its height equals the phone's physical
+   WIDTH (~320–430px). IMPORTANT: vh/vw units still see the REAL (tall)
+   viewport inside a rotated stage, so this block pins FIXED px values
+   everywhere vh-based clamps would read the wrong dimension. The main
+   menu also switches to a 2-column grid so all 7 entries always fit. */
+body.mobile.portrait .menu-overlay { padding-top: 16px; }
+/* Rotated stage: the overlay's main axis maps to the physical HORIZONTAL —
+   center the menu block so tablets (and phones) don't get a right-hugging
+   column with a dead half of the screen. */
+body.mobile.portrait .menu-overlay { justify-content: center; }
+body.mobile.portrait .menu-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+    margin-top: 18px;
+    margin-bottom: 8px;
+    width: 300px;
+}
+body.mobile.portrait .menu-btn { padding: 10px 4px; font-size: 9px; }
+body.mobile.portrait h1 { font-size: 17px; margin-bottom: 6px; }
+body.mobile.portrait h2 { font-size: 13px; margin-bottom: 8px; padding-bottom: 5px; }
+body.mobile.portrait .scroll-container.garage-list { max-height: 64px; }
+body.mobile.portrait .fr-list { max-height: 84px; }
+/* The customizer is the tallest console — on the short rotated stage it
+   scrolls INTERNALLY (never the page) while BACK stays visible. */
+body.mobile.portrait .gar-custom {
+    max-height: 218px;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: #3a3f4a #0d0e12;
+}
+body.mobile.portrait .gar-custom::-webkit-scrollbar { width: 5px; }
+body.mobile.portrait .gar-custom::-webkit-scrollbar-thumb { background: #3a3f4a; }
+body.mobile.portrait .gar-rows { max-height: none; overflow: visible; }
+body.mobile.portrait #garage-preview { width: 200px; }
+body.mobile.portrait .gar-row { min-height: 34px; }
+body.mobile.portrait .results-card { padding: 10px 12px; }
+body.mobile.portrait .results-row { font-size: 9px; margin: 6px 0; }
+body.mobile.portrait .results-continue { margin-top: 10px; width: 220px; }
+body.mobile.portrait .result-winner { width: 260px; padding: 7px 9px; gap: 9px; margin-bottom: 8px; }
+body.mobile.portrait .result-winner-av { width: 36px; height: 36px; flex-basis: 36px; font-size: 16px; }
+body.mobile.portrait .result-winner-name { font-size: 10px; }
+body.mobile.portrait .result-winner-caption { font-size: 6px; letter-spacing: 2px; }
+body.mobile.portrait .result-winner-car { font-size: 7px; }
+body.mobile.portrait .mp-rematch-btn { margin-top: 8px; width: 220px; }
+body.mobile.portrait .btn-shift { width: 50px; height: 65px; font-size: 8px; }
+body.mobile.portrait .btn-pedal { width: 52px; height: 85px; font-size: 8px; }
+body.mobile.portrait .btn-pedal.brake { height: 65px; }
+body.mobile.portrait.has-nos .btn-pedal { width: 45px; }
+body.mobile.portrait.has-nos .btn-pedal.btn-nos { width: 47px; }
+body.mobile.portrait .hud { font-size: 9px; padding: 8px 45px 8px 8px; }
+body.mobile.portrait .hud #race-timer { font-size: 14px; }
+body.mobile.portrait .scroll-container.garage-list { max-height: 30vh; }
+body.mobile.portrait .mp-panel,
+body.mobile.portrait .gar-custom { width: min(560px, 94vh); padding: 14px 16px 12px; }
+body.mobile.portrait .mp-status { min-height: 22px; margin: 8px 0 2px; }
+body.mobile.portrait .mp-code-display { font-size: 26px; padding: 10px 14px 8px; margin-bottom: 10px; }
+body.mobile.portrait .mp-action { margin-top: 10px; }
+body.mobile.portrait .mp-back { margin-top: 10px; }
+body.mobile.portrait .pf-panel { width: min(560px, 94vh); }
 
 /* ─── MULTIPLAYER ─── */
 #multiplayer-menu { padding-top: max(24px, env(safe-area-inset-top)); }
 .mp-panel {
     width: min(560px, 94vw);
+    max-height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: #3a3f4a #0d0e12;
     background: linear-gradient(180deg, #14161b 0%, #0d0e12 100%);
     border: 2px solid #2c2f38;
     box-shadow: 0 0 0 4px #050505, 8px 8px 0 rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04);
-    padding: 26px 26px 22px;
+    padding: clamp(14px, 3vh, 26px) clamp(14px, 3vw, 26px) clamp(10px, 2.4vh, 22px);
     display: flex;
     flex-direction: column;
     align-items: center;
     position: relative;
 }
+.mp-panel::-webkit-scrollbar { width: 6px; }
+.mp-panel::-webkit-scrollbar-thumb { background: #3a3f4a; border-radius: 3px; }
 /* subtle scanlines so the MP console matches the arcade look */
 .mp-panel::before {
     content: '';
@@ -383,13 +745,6 @@ body.mobile.portrait #game-container > *:not(#rotate-prompt) { visibility: hidde
     max-width: 380px;
     margin-top: 8px;
     margin-bottom: 8px;
-}
-.mp-footnote {
-    font-size: 7px;
-    color: #4a4f5a;
-    letter-spacing: 1px;
-    margin: 4px 0 6px;
-    text-align: center;
 }
 .mp-panel-body {
     width: 100%;
@@ -476,29 +831,6 @@ body.mobile.portrait #game-container > *:not(#rotate-prompt) { visibility: hidde
 .mp-code-input::placeholder { color: #3a3d44; letter-spacing: 6px; text-indent: 6px; }
 .mp-action { width: 220px; margin-top: 18px; }
 
-.mp-opp-card {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    max-width: 320px;
-    background: #101216;
-    border: 1px solid #2c2f38;
-    border-left: 5px solid #4fc3f7;
-    padding: 12px 14px;
-    margin-bottom: 4px;
-    text-align: left;
-}
-.mp-opp-chip {
-    width: 26px;
-    height: 26px;
-    flex: 0 0 26px;
-    border: 2px solid #000;
-    box-shadow: 0 0 0 1px #444, 0 0 10px rgba(0,0,0,0.6) inset;
-}
-.mp-opp-text { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
-.mp-opp-text #mp-opp-name { color: #eceff1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mp-opp-stats { color: #9e9d24; font-size: 8px; letter-spacing: 1px; }
 .mp-live-dot {
     width: 8px;
     height: 8px;
@@ -554,6 +886,18 @@ body.mobile.portrait #game-container > *:not(#rotate-prompt) { visibility: hidde
 }
 .mp-rematch-btn:active { animation: none; }
 
+/* Results-screen "race your ghost again" — same slot as the MP rematch,
+   but in the spectral cyan of the ghost feature. */
+.results-ghost-again {
+    width: 280px;
+    max-width: 90vw;
+    margin-top: 22px;
+    animation: mp-pulse 1.4s ease-in-out infinite;
+}
+.results-ghost-again:active { animation: none; }
+body.mobile .results-ghost-again { margin-top: 14px; }
+body.mobile.portrait .results-ghost-again { margin-top: 8px; width: 220px; }
+
 /* ─── MULTIPLAYER · MOBILE ─── */
 body.mobile .mp-panel { padding: 18px 14px 16px; }
 body.mobile .mp-choice-grid { grid-template-columns: 1fr; max-width: 280px; gap: 10px; }
@@ -562,8 +906,32 @@ body.mobile .mp-code-input { font-size: 18px; letter-spacing: 6px; text-indent: 
 body.mobile .mp-status { font-size: 9px; }
 body.mobile .mp-label { font-size: 8px; }
 body.mobile .mp-hint { font-size: 7px; line-height: 2; }
-body.mobile .mp-opp-text #mp-opp-name { font-size: 10px; }
-body.mobile .mp-footnote { font-size: 6px; }
+/* Tune SETUP −/+ steppers (Performance & Tuning) */
+.shop-tune-ctl {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.shop-tune-btn {
+    min-width: 26px;
+    min-height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #1d1d1d;
+    border: 2px solid #4fc3f7;
+    color: #4fc3f7;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: 2px 2px 0 #000;
+    transition: background 0.12s, transform 0.06s;
+}
+.shop-tune-btn:hover { background: #12313b; }
+.shop-tune-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #000; }
+.shop-tune-btn:focus-visible { outline: 2px dashed #ffeb3b; outline-offset: 2px; }
+.shop-tune-btn.shop-tune-off { opacity: 0.3; pointer-events: none; }
 body.mobile .mp-net-badge { font-size: 7px; }
 body.mobile .mp-stats-line { font-size: 7px; padding: 6px 8px; }
 body.mobile .mp-stage-hint { font-size: 8px; margin-top: 5px; }
@@ -579,12 +947,19 @@ body.mobile .mp-rematch-btn { margin-top: 14px; }
 }
 /* ─── RESULTS SCREEN ─────────────────────────────────────────────── */
 .result-title {
-    font-size: 36px;
+    /* The old 36px cap stretched long headlines (OPPONENT FALSE STARTED)
+       past the screen edges over the frozen finish-line scene. Tighter
+       clamp + wrapping keeps every outcome readable on PC and mobile. */
+    font-size: clamp(15px, 4.2vh, 25px);
+    line-height: 1.35;
+    max-width: 92vw;
+    white-space: normal;
+    word-break: break-word;
     border: none;
     width: auto;
     padding-bottom: 0;
-    margin-bottom: 12px;
-    text-shadow: 4px 4px 0 #000, 0 0 24px rgba(255, 255, 255, 0.12);
+    margin-bottom: clamp(8px, 2vh, 12px);
+    text-shadow: 3px 3px 0 #000, 0 0 24px rgba(255, 255, 255, 0.12);
     animation: results-title-in 0.3s ease-out;
 }
 @keyframes results-title-in {
@@ -625,7 +1000,12 @@ body.mobile .mp-rematch-btn { margin-top: 14px; }
 .results-label { color: #9aa0aa; }
 .results-value { color: #fff; text-shadow: 2px 2px 0 #000; }
 .results-value-cyan  { color: #4fc3f7; }
+/* Red-light reaction: a NEGATIVE reaction time prints red. */
+.results-value-red { color: #ff5252 !important; }
 .results-value-opp   { color: #ce93d8; font-size: 10px; }
+/* Ghost ET row — spectral cyan to match the ghost's lane, aura and button. */
+.results-row-ghost .results-label { color: #4dd0e1; }
+.results-row-ghost .results-value-opp { color: #4dd0e1; text-shadow: 0 0 6px rgba(77, 208, 225, 0.5); }
 .results-value-prize { color: #4caf50; font-size: 14px; }
 .results-row-prize {
     border-top: 2px dashed #444;
@@ -644,9 +1024,83 @@ body.mobile .mp-rematch-btn { margin-top: 14px; }
 @keyframes record-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 .results-continue { width: 280px; max-width: 90vw; margin-top: 20px; }
 
+/* Winner card — the face behind the ET. Avatar (real image or initial
+   tile), driver name, car + paint chip. Sits between the headline and
+   the timeslip and animates in with it. */
+.result-winner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 320px;
+    max-width: 90vw;
+    margin-bottom: clamp(8px, 1.8vh, 14px);
+    padding: 10px 12px;
+    background: linear-gradient(180deg, rgba(35, 35, 35, 0.9), rgba(26, 26, 26, 0.9));
+    border: 2px solid #3a3a3a;
+    border-left: 4px solid #ffeb3b;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+    text-align: left;
+}
+#results-menu:not(.hidden) .result-winner { animation: results-card-in 0.26s ease-out; }
+.result-winner.hidden { display: none; }
+.result-winner-av {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    font-size: 20px;
+    box-shadow: 0 0 0 2px #000, 0 0 10px rgba(255, 235, 59, 0.25);
+}
+.result-winner-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.result-winner-caption {
+    color: #ffeb3b;
+    font-size: 7px;
+    letter-spacing: 3px;
+    text-shadow: 2px 2px 0 #000;
+}
+.result-winner-name {
+    color: #fff;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: 2px 2px 0 #000;
+}
+.result-winner-car {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #9aa0aa;
+    font-size: 8px;
+    min-width: 0;
+}
+.result-winner-car > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.result-winner-chip {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow: 0 0 0 1px #000;
+}
+/* TURBO/NOS hardware chips under the winner's car line — the same badge
+   language as the MP lobby cards (amber = forced induction, violet =
+   the bottle) so "what won" reads at a glance on every results slip. */
+.result-upg-row {
+    margin-top: 2px;
+    min-height: 0;
+}
+
 /* ─── GARAGE CUSTOMIZATION PICKER ────────────────────────────────── */
 .gar-custom {
     width: min(560px, 94vw);
+    max-height: calc(100% - 6px);
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: #3a3f4a #0d0e12;
     background: linear-gradient(180deg, #14161b 0%, #0d0e12 100%);
     border: 2px solid #2c2f38;
     box-shadow: 0 0 0 4px #050505, 8px 8px 0 rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04);
@@ -679,7 +1133,9 @@ body.mobile .mp-rematch-btn { margin-top: 14px; }
 }
 .gar-title-car { color: #ffeb3b; }
 #garage-preview {
-    image-rendering: pixelated;
+    /* No image-rendering: pixelated here. The preview is a VECTOR canvas
+       backed at device resolution, so nearest-neighbour upscaling was
+       smearing every edge into mush - that was the "blurry garage car". */
     background:
         radial-gradient(circle at 50% 30%, rgba(255,255,255,0.06), transparent 60%),
         #08090b;
@@ -697,7 +1153,17 @@ body.mobile .mp-rematch-btn { margin-top: 14px; }
     font-size: 9px;
 }
 .gar-quick-stock { background: #455a64; border-color: #78909c; }
-.gar-rows { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.gar-rows {
+    width: 100%;
+    display: flex; flex-direction: column; gap: 6px;
+    max-height: clamp(120px, 34vh, 330px);
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: #3a3f4a #0a0a0a;
+}
+.gar-rows::-webkit-scrollbar { width: 6px; }
+.gar-rows::-webkit-scrollbar-thumb { background: #3a3f4a; border-radius: 3px; }
 .gar-row {
     display: flex;
     align-items: center;
@@ -742,6 +1208,24 @@ body.mobile .mp-rematch-btn { margin-top: 14px; }
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+/* Paint rows: value shows a live color chip + the palette name.
+   The checker underlay keeps near-black paints (MIDNIGHT etc.) visible. */
+.gar-value-paint { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.gar-swatch {
+    width: 13px; height: 13px;
+    flex: 0 0 13px;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    box-shadow: 0 0 0 1px #000, inset 0 0 3px rgba(0, 0, 0, 0.45);
+}
+/* Checker underlay only for DARK paints — it gives near-black chips a
+   readable texture; on bright paints it would just be noise. */
+.gar-swatch-dark {
+    background-image:
+        linear-gradient(45deg, #191919 25%, transparent 25%, transparent 75%, #191919 75%),
+        linear-gradient(45deg, #191919 25%, transparent 25%, transparent 75%, #191919 75%);
+    background-size: 6px 6px;
+    background-position: 0 0, 3px 3px;
 }
 .gar-hint {
     font-size: 7px;
@@ -806,18 +1290,24 @@ body.mobile .mp-rematch-btn { margin-top: 14px; }
 .gar-arrow:focus-visible,
 .mp-turn-row:focus-visible,
 .mp-copy-btn:focus-visible,
-.mp-code-input:focus-visible {
+.mp-code-input:focus-visible,
+.fr-btn:focus-visible {
     outline: 2px solid #ffeb3b;
     outline-offset: 2px;
 }
 
 /* ─── MOBILE TWEAKS · NEW ELEMENTS ───────────────────────────────── */
 body.mobile .results-card { padding: 14px 14px; }
-body.mobile .result-title { font-size: 26px; }
+body.mobile .result-title { font-size: 19px; }
 body.mobile .results-row { font-size: 10px; margin: 8px 0; }
 body.mobile .results-value-prize { font-size: 12px; }
 body.mobile .results-continue { margin-top: 14px; }
 body.mobile .result-record { font-size: 8px; }
+body.mobile .result-winner { width: 280px; padding: 8px 10px; gap: 10px; }
+body.mobile .result-winner-av { width: 40px; height: 40px; flex-basis: 40px; font-size: 17px; }
+body.mobile .result-winner-name { font-size: 10px; }
+body.mobile .result-winner-caption { font-size: 6px; }
+body.mobile .result-winner-car { font-size: 7px; }
 body.mobile .gar-custom { padding: 12px 10px 10px; }
 body.mobile .gar-row { min-height: 40px; gap: 6px; }
 body.mobile .gar-arrow { flex-basis: 38px; width: 38px; height: 32px; }
@@ -829,7 +1319,7 @@ body.mobile .gar-hint { font-size: 6px; }
 body.mobile .mp-turn-row { max-width: 300px; padding: 8px 10px; }
 body.mobile .mp-turn-label { font-size: 6px; }
 @media (max-height: 420px) {
-    .result-title { font-size: 28px; margin-bottom: 8px; }
+    .result-title { font-size: 17px; margin-bottom: 8px; }
     .results-card { padding: 12px 18px; }
     .results-row { margin: 6px 0; }
     .results-row-prize { margin-top: 8px; padding-top: 6px; }
@@ -839,54 +1329,6 @@ body.mobile .mp-turn-label { font-size: 6px; }
     .gar-row { min-height: 36px; }
     .gar-quick { margin-bottom: 8px; }
     .mp-turn-row { margin-bottom: 6px; padding: 7px 10px; }
-}
-
-/* ─── MULTIPLAYER · FIREBASE RULES FIX PANEL ─────────────────────── */
-/* Opened by _handleSetupError() when the RTDB rules deny access — a guided
-   one-time fix with copyable rules, instead of a dead-end error message. */
-.mp-rules-title { color: #ff8a80; }
-.mp-rules-steps {
-    font-size: 8px;
-    color: #b0b6c0;
-    line-height: 2.1;
-    text-align: center;
-    letter-spacing: 0.5px;
-    margin: 2px 0 14px;
-    text-shadow: 1px 1px 0 #000;
-}
-.mp-rules-em { color: #4fc3f7; }
-.mp-rules-json {
-    font-family: inherit;
-    font-size: 9px;
-    line-height: 1.9;
-    color: #69f0ae;
-    background: #05070a;
-    border: 1px solid #1b5e20;
-    box-shadow: inset 0 0 14px rgba(105, 240, 174, 0.07), 3px 3px 0 #000;
-    padding: 12px 16px;
-    margin: 0 0 16px;
-    text-align: left;
-    white-space: pre;
-    user-select: all;
-    -webkit-user-select: all;
-    max-width: 92%;
-    overflow-x: auto;
-}
-.mp-rules-actions {
-    display: flex;
-    gap: 12px;
-    align-items: stretch;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-.mp-rules-actions .mp-action { margin-top: 0; }
-
-body.mobile .mp-rules-json { font-size: 8px; padding: 10px 10px; }
-body.mobile .mp-rules-steps { font-size: 7px; line-height: 1.9; }
-
-@media (max-height: 420px) {
-    .mp-rules-json { font-size: 8px; padding: 8px 12px; margin-bottom: 10px; }
-    .mp-rules-steps { line-height: 1.7; margin-bottom: 8px; }
 }
 
 /* ─── MULTIPLAYER · QUICK RECONNECT (one-time pairing) ───────────── */
@@ -957,4 +1399,335 @@ body.mobile .result-series { font-size: 8px; }
     .mp-quick-btn { padding: 9px 8px; }
     .mp-mode-row { margin: 2px 0 8px; }
     .mp-mode-opt { padding: 6px 8px; }
+}
+
+/* ─── DRIVER PROFILE ─────────────────────────────────────────────── */
+/* Shared avatar tile: square source + object-fit cover = geometrically
+   impossible to stretch or distort. No avatar → colored initial tile. */
+.mp-avatar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    background: #263238;
+    color: #eceff1;
+    border: 2px solid #000;
+    box-shadow: 0 0 0 1px #444;
+    font-size: 15px;
+    font-family: 'Press Start 2P', cursive;
+    overflow: hidden;
+    border-radius: 6px;
+    text-shadow: none;
+}
+.mp-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; image-rendering: auto; }
+
+/* Main-menu profile chip (mirrors the CASH box). */
+.pf-chip {
+    position: absolute;
+    top: max(15px, env(safe-area-inset-top));
+    left: max(20px, env(safe-area-inset-left));
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: #000;
+    border: 1px solid #333;
+    padding: 5px 12px 5px 6px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: border-color 0.15s;
+    z-index: 5;
+}
+.pf-chip:hover { border-color: #ff9800; }
+.pf-chip-avatar { width: 26px; height: 26px; flex: 0 0 26px; border-radius: 4px; font-size: 11px; }
+.pf-chip-name { color: #eceff1; font-size: 9px; letter-spacing: 1px; }
+
+/* Profile panel (menu overlay). */
+.pf-panel {
+    width: min(480px, 94vw);
+    max-height: 100%;
+    min-height: 0;
+    flex: 0 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: #3a3f4a #0d0e12;
+    background: linear-gradient(180deg, #14161b 0%, #0d0e12 100%);
+    border: 2px solid #2c2f38;
+    box-shadow: 0 0 0 4px #050505, 8px 8px 0 rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04);
+    padding: 20px 22px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+.pf-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 4px);
+    pointer-events: none;
+}
+#profile-menu:not(.hidden) .pf-panel { animation: mp-panel-in 0.22s ease-out; }
+.pf-top {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    max-width: 360px;
+    margin-bottom: 14px;
+}
+.pf-avatar {
+    width: 84px;
+    height: 84px;
+    flex: 0 0 84px;
+    border-radius: 10px;
+    font-size: 30px;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pf-avatar:hover { border-color: #ff9800; box-shadow: 0 0 0 1px #ff9800; }
+.pf-id-block { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1; }
+.pf-stats {
+    font-size: 8px;
+    color: #4fc3f7;
+    letter-spacing: 1px;
+    line-height: 1.8;
+    text-shadow: 1px 1px 0 #000;
+}
+.pf-id-row { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.pf-id-label { font-size: 7px; color: #9aa0aa; letter-spacing: 1px; flex: 0 0 auto; }
+.pf-id {
+    font-size: 9px;
+    color: #ffeb3b;
+    letter-spacing: 1px;
+    user-select: all;
+    -webkit-user-select: all;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pf-row { display: flex; gap: 10px; width: 100%; max-width: 360px; justify-content: center; margin: 5px 0; }
+.pf-btn { width: auto; flex: 1; padding: 13px 8px; font-size: 9px; }
+.pf-name-input { flex: 1; min-width: 0; font-size: 13px; letter-spacing: 2px; text-indent: 2px; padding: 13px 10px; width: auto; text-transform: uppercase; }
+.pf-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.pf-cloud {
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: #5a6070;
+    margin: 10px 0 4px;
+    text-align: center;
+    line-height: 1.8;
+    min-height: 14px;
+}
+.pf-cloud-on  { color: #69f0ae; }
+.pf-cloud-err { color: #ff8a80; }
+.pf-cloud-dim { color: #5a6070; }
+.pf-cloud-dim { color: #5a6070; }
+/* Small clipboard icon directly in front of the Profile ID. */
+.pf-copy-icon {
+    width: 26px; height: 26px;
+    flex: 0 0 26px;
+    display: flex; justify-content: center; align-items: center;
+    background: #1c222b;
+    border: 1px solid #455a64;
+    border-radius: 6px;
+    color: #cfd8dc;
+    cursor: pointer;
+    user-select: none; -webkit-user-select: none;
+    transition: all 0.12s;
+}
+.pf-copy-icon:hover { color: #fff; border-color: #78909c; background: #232b36; }
+.pf-copy-icon svg { width: 13px; height: 13px; display: block; }
+.pf-copy-icon.pf-copied { color: #69f0ae; border-color: #1b5e20; box-shadow: 0 0 8px rgba(105,240,174,0.35); }
+.pf-section-label {
+    font-size: 8px;
+    color: #9aa0aa;
+    letter-spacing: 2px;
+    width: 100%;
+    max-width: 360px;
+    text-align: left;
+    margin: clamp(8px, 1.8vh, 14px) 0 6px;
+    flex: 0 0 auto;
+}
+.pf-link-row { display: flex; gap: 8px; width: 100%; max-width: 360px; }
+.pf-link-btn { position: relative; opacity: 0.8; padding: clamp(9px, 2vh, 13px) 6px; font-size: 8px; }
+.pf-link-soon {
+    position: absolute;
+    top: -8px; right: -5px;
+    font-size: 6px;
+    background: #ff9800;
+    color: #111;
+    padding: 2px 4px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+    box-shadow: 2px 2px 0 #000;
+}
+/* ─── FRIENDS LIST (profile panel) ───────────────────────────── */
+.pf-friend-add { margin-bottom: 2px; }
+.fr-add-input { flex: 1; min-width: 0; font-size: 12px; letter-spacing: 1px; text-indent: 4px; padding: 11px 10px; width: auto; text-align: left; }
+.fr-list {
+    width: 100%;
+    max-width: 360px;
+    max-height: 24vh;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex; flex-direction: column; gap: 6px;
+    scrollbar-width: thin; scrollbar-color: #3a3f4a #0a0a0a;
+    flex: 0 1 auto;
+}
+.fr-list::-webkit-scrollbar { width: 6px; }
+.fr-list::-webkit-scrollbar-thumb { background: #3a3f4a; border-radius: 3px; }
+.fr-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #0a0a0a;
+    border: 1px solid #2c2f38;
+    padding: 7px 9px;
+    font-size: 8px;
+    flex: 0 0 auto;
+    min-height: 36px;
+}
+.fr-row:hover { border-color: #3d414c; }
+.fr-empty { color: #5a6070; letter-spacing: 1px; justify-content: center; }
+.fr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #eceff1; }
+.fr-sub { color: #5a6070; font-size: 7px; letter-spacing: 1px; flex: 0 0 auto; }
+.fr-sub-on { color: #69f0ae; }
+.fr-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; flex: 0 0 8px; }
+.fr-dot.on { background: #4caf50; box-shadow: 0 0 6px rgba(76,175,80,0.8); }
+.fr-btn {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 7px;
+    padding: 6px 8px;
+    background: #1c222b;
+    border: 1px solid #455a64;
+    color: #cfd8dc;
+    cursor: pointer;
+    user-select: none; -webkit-user-select: none;
+    box-shadow: 2px 2px 0 #000;
+    transition: all 0.05s;
+    flex: 0 0 auto;
+}
+.fr-btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 #000; }
+.fr-btn.green { color: #69f0ae; border-color: #1b5e20; }
+.fr-btn.red { color: #ff8a80; border-color: #8b3a3a; }
+.fr-btn.warn { color: #ffd54f; border-color: #8d6e2f; }
+
+/* BLOCKED section — visually sunk below the social rows. */
+.fr-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #7a5b33;
+    font-size: 7px;
+    letter-spacing: 2px;
+    margin-top: 4px;
+    flex: 0 0 auto;
+}
+.fr-divider::after { content: ''; flex: 1; height: 1px; background: #3a2f1d; }
+.fr-row-blocked { border-color: #3a2f1d; background: #0c0a07; }
+.fr-row-blocked:hover { border-color: #4a3c24; }
+.fr-name-blocked { color: #8d8577; text-decoration: line-through; text-decoration-color: #5a4020; }
+
+body.mobile .pf-panel { padding: 12px 12px 12px; }
+body.mobile .pf-section-label { font-size: 7px; margin: 8px 0 4px; }
+body.mobile .fr-row { font-size: 7px; padding: 6px 7px; min-height: 34px; }
+body.mobile .fr-btn { font-size: 6px; padding: 5px 6px; }
+body.mobile .fr-sub { font-size: 6px; }
+body.mobile .fr-list { max-height: 22vh; }
+body.mobile .pf-link-btn { font-size: 7px; padding: 10px 4px; }
+body.mobile .pf-avatar { width: 64px; height: 64px; flex-basis: 64px; font-size: 22px; }
+body.mobile .pf-btn { font-size: 8px; padding: 12px 6px; }
+body.mobile .pf-chip-name { font-size: 8px; }
+body.mobile .pf-stats { font-size: 7px; }
+
+/* ─── MULTIPLAYER · LOBBY CARDS (YOU vs THEM) ────────────────────── */
+.mp-lobby-cards { width: 100%; display: flex; flex-direction: column; gap: 8px; align-items: center; margin-bottom: 6px; }
+.mp-lobby-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 400px;
+    background: #101216;
+    border: 1px solid #2c2f38;
+    padding: 8px 12px;
+    text-align: left;
+}
+.mp-lobby-card-me  { border-left: 5px solid #66bb6a; }
+.mp-lobby-card-opp { border-left: 5px solid #4fc3f7; }
+.mp-lobby-text { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
+.mp-lobby-text #mp-me-name,
+.mp-lobby-text #mp-opp-name { color: #eceff1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-lobby-sub { color: #9e9d24; font-size: 8px; letter-spacing: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* TURBO/NOS stage chips on the lobby cards — a quick read of what both
+   drivers are bringing (amber for forced induction, violet for the bottle,
+   matching the NOS pedal button). */
+.mp-upg-row { display: flex; gap: 4px; flex-wrap: wrap; min-width: 0; }
+.mp-upg-badge {
+    display: inline-block;
+    padding: 2px 5px 1px;
+    font-size: 7px;
+    letter-spacing: 1px;
+    font-family: 'Press Start 2P', cursive;
+    border-radius: 2px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+.mp-upg-turbo { color: #3e2723; background: #ffb74d; border: 1px solid #8d5b12; text-shadow: none; }
+.mp-upg-nos    { color: #f3e5f5; background: #7e57c2; border: 1px solid #4527a0; text-shadow: 1px 1px 0 rgba(0,0,0,.45); }
+
+/* BEST ET chip on the main menu — a proper driver stat under the profile
+   chip (the old inline-styled div was 7px near-invisible AND collided with
+   the FULLSCREEN button at 800-tall viewports). */
+.menu-record {
+    position: absolute;
+    top: calc(max(15px, env(safe-area-inset-top)) + 56px);
+    left: max(20px, env(safe-area-inset-left));
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: #9e9d24;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid #3a3a22;
+    padding: 4px 8px 3px;
+    pointer-events: none;
+}
+.menu-record:empty { display: none; }
+
+/* Tall desktops: center the main menu and results vertically — top-hugging
+   columns left a dead half-screen below (mobile keeps its compacted
+   layouts; rotated-portrait stages must NOT re-center, their media tiers
+   rely on top-anchored flow). */
+body:not(.mobile) #main-menu { justify-content: center; }
+body:not(.mobile) #results-menu { justify-content: center; }
+.mp-car-preview {
+    flex: 0 0 auto;
+    background: #08090b;
+    border: 1px solid #22262e;
+    image-rendering: pixelated;
+    width: 150px;
+    height: 46px;
+}
+body.mobile .mp-lobby-card { gap: 8px; padding: 7px 9px; }
+body.mobile .mp-lobby-text #mp-me-name,
+body.mobile .mp-lobby-text #mp-opp-name { font-size: 10px; }
+body.mobile .mp-car-preview { width: 118px; height: 37px; }
+@media (max-height: 420px) {
+    .mp-lobby-cards { gap: 6px; }
+    .mp-car-preview { width: 118px; height: 37px; }
+}
+
+/* Keyboard focus for the new interactive rows */
+.pf-chip:focus-visible,
+.pf-avatar:focus-visible,
+.pf-copy-icon:focus-visible,
+.pf-link-btn:focus-visible,
+.fr-btn:focus-visible,
+.fr-add-input:focus-visible,
+.pf-name-input:focus-visible {
+    outline: 2px solid #ffeb3b;
+    outline-offset: 2px;
 }

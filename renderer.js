@@ -1,62 +1,227 @@
 'use strict';
 
-// Helper to get consistent road Y that pushes up on mobile to avoid UI overlap
-function getRoadY(H, isMobile) {
-    return Math.min(H - 140, H * (isMobile ? 0.60 : 0.72));
+// Helper to get a consistent road Y. It accounts for the on-screen control
+// strip (bottomReserve, measured from the live DOM) so the player's car —
+// lane offset 65 + body height ~50px — can NEVER end up underneath the
+// GAS/BRAKE/SHIFT buttons, on any screen size or aspect ratio. A floor of
+// 0.32H keeps the road from swallowing the whole sky on very short stages.
+function getRoadY(H, isMobile, bottomReserve) {
+    const reserve = bottomReserve || 0;
+    const byControls = H - reserve - 126;
+    return Math.max(H * 0.32, Math.min(H - 140, byControls, H * (isMobile ? 0.60 : 0.72)));
 }
 
-// A deliberately small, pixel-friendly side-profile library. These are original
-// silhouettes, not generic body-type rectangles; each profile also owns the
-// attachment coordinates used by visual customization and particles.
-const CAR_ART = {
-    civic_ek: { p:[[1,37],[3,26],[16,22],[25,10],[59,8],[74,13],[85,23],[98,26],[100,37]], glass:[[27,21],[31,12],[57,11],[70,15],[78,21]], wheels:[[22,36],[82,36]], rear:3, front:96, spoiler:[5,20] },
-    s14: { p:[[0,37],[3,27],[15,24],[31,12],[61,10],[75,15],[86,24],[99,27],[101,37]], glass:[[31,22],[36,13],[59,12],[71,16],[80,22]], wheels:[[22,36],[82,36]], rear:2, front:97, spoiler:[5,22] },
-    mustang_sn95: { p:[[1,37],[4,26],[20,23],[35,12],[68,11],[78,16],[86,24],[103,27],[105,37]], glass:[[37,22],[41,14],[65,14],[74,18],[80,22]], wheels:[[23,36],[85,36]], rear:3, front:101, spoiler:[6,21] },
-    r34: { p:[[0,37],[3,25],[18,22],[29,10],[67,10],[80,17],[88,24],[100,27],[102,37]], glass:[[30,21],[34,12],[64,12],[76,18],[82,21]], wheels:[[22,36],[83,36]], rear:2, front:98, spoiler:[4,20] },
-    supra_a80: { p:[[0,37],[4,28],[17,24],[35,14],[57,11],[72,14],[86,23],[99,27],[101,37]], glass:[[34,22],[42,15],[57,14],[69,18],[76,22]], wheels:[[22,36],[82,36]], rear:2, front:97, spoiler:[4,20] },
-    viper_acr: { p:[[0,37],[4,27],[20,23],[38,13],[60,12],[72,16],[83,24],[101,27],[103,37]], glass:[[39,21],[45,15],[60,15],[69,19],[76,22]], wheels:[[23,36],[84,36]], rear:2, front:99, spoiler:[4,19] },
-    huracan: { p:[[0,37],[5,29],[18,24],[35,15],[56,12],[76,15],[89,24],[100,28],[102,37]], glass:[[34,22],[42,16],[57,14],[72,18],[80,22]], wheels:[[22,36],[84,36]], rear:2, front:98, spoiler:[4,20] },
-    funny_car: { p:[[-12,37],[-8,26],[15,23],[22,11],[43,11],[49,23],[106,23],[122,28],[122,37]], glass:[[26,21],[28,14],[39,14],[43,21]], wheels:[[10,36],[100,36]], rear:-10, front:120, spoiler:[-14,18] },
-};
-function artFor(car) { return CAR_ART[car.art] || CAR_ART.civic_ek; }
-function traceProfile(ctx, art) { ctx.beginPath(); ctx.moveTo(art.p[0][0], art.p[0][1]); for (let i = 1; i < art.p.length; i++) ctx.lineTo(art.p[i][0], art.p[i][1]); ctx.closePath(); }
-function drawPolygon(ctx, points) { ctx.beginPath(); ctx.moveTo(points[0][0], points[0][1]); for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]); ctx.closePath(); ctx.fill(); }
+// Car silhouettes, wheel construction and bolt-on part geometry all live in
+// car-art.js (loaded before this file). The layer order below is the whole
+// look: silhouette -> decals -> arch cut-outs -> glass -> trim -> panel
+// detail -> lamps -> bolt-ons -> wheels -> arch lips.
+const CarArt = window.CarArt || { artFor: () => null };
+const artFor = CarArt.artFor;
+
+// A wheel fills the arch it sits in: dark well, tire, then a painted fender
+// lip stroked back over the top of the tire on top of the arch edge.
+function archWellPath(ctx, wx, wy, r, base) {
+    ctx.beginPath();
+    ctx.moveTo(wx - r, base);
+    ctx.arc(wx, wy, r, Math.PI, Math.PI * 2);
+    ctx.lineTo(wx + r, base);
+    ctx.closePath();
+}
+
 function drawModernWheel(ctx, x, y, tire, rim, car) {
-    ctx.fillStyle = '#080a0c'; ctx.beginPath(); ctx.arc(x, y, tire, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#30343a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, tire - .7, 0, Math.PI * 2); ctx.stroke();
+    const brand = car.customization?.tireBrand?.brand || null;
     ctx.save(); ctx.translate(x, y); ctx.rotate(car.wheelRotation);
+    CarArt.drawTire(ctx, tire, rim, brand);
     const style = car.customization?.rim;
-    if (style?.draw) style.draw(ctx, rim); else { ctx.fillStyle = '#7a7a7a'; ctx.beginPath(); ctx.arc(0, 0, rim, 0, Math.PI * 2); ctx.fill(); }
+    // Rim draws receive the car so a RIM PAINT selection ('accent' rides
+    // secondaryColor; explicit finishes pass their hex) can override the
+    // style's own default finish.
+    if (style?.draw) style.draw(ctx, rim, car);
+    else CarArt.drawRimFace(ctx, rim, (style && style.id) || 'stock', car);
     ctx.restore();
 }
+
 function renderModernCar(ctx, car, c, s, glass) {
-    const art = artFor(car), tireDef = car.customization?.tire;
-    const rearTire = tireDef?.radius || (car.upgrades.slicks ? 13 : 11);
-    const frontTire = car.type === 'dragster' ? 6 : rearTire;
-    const rimFactor = tireDef?.rimRadius || .55;
+    const art = artFor(car);
+    if (!art) return;
+    const tireDef = car.customization?.tire;
+    // Tire size follows the silhouette, so a wheel can never be more than
+    // about half the car's own height — the ratio that decides whether a
+    // silhouette reads as a car or as a toy.
+    const rearTire = Math.max(4, art.tireR * (tireDef?.scale ?? (car.upgrades.slicks ? 1.08 : 1)));
+    const frontTire = car.type === 'dragster' ? rearTire * 0.5 : rearTire;
+    const rimFactor = tireDef?.rimRadius || .68;
+    // The wheel centre is derived from the shared ground line so a bigger
+    // tire grows UP into the arch instead of sinking through the road.
+    const wy = art.ground - rearTire, wyF = art.ground - frontTire;
+    const midX = (art.rear + art.front) / 2;
+
     car._artAnchors = {
-        rearWheel: { x: art.wheels[0][0], y: art.wheels[0][1], r: rearTire }, frontWheel: { x: art.wheels[1][0], y: art.wheels[1][1], r: frontTire },
-        exhaust: { x: art.rear, y: 29 }, spoiler: { x: art.spoiler[0], y: art.spoiler[1] }, kit: { x: art.rear + 4, y: 37, w: art.front - art.rear - 8 },
-        livery: { x: Math.max(4, art.rear + 6), y: 21, w: Math.max(36, art.front - art.rear - 12), h: 15 }
+        rearWheel: { x: art.wheels[0][0], y: wy, r: rearTire },
+        frontWheel: { x: art.wheels[1][0], y: wyF, r: frontTire },
+        exhaust: { x: art.rear + 1.5, y: art.rocker - 4 },
+        spoiler: { x: art.deck[0], y: art.deck[1], w: art.deck[2] },
+        kit: {
+            x: art.rear + 3, y: art.rocker, w: art.front - art.rear - 6,
+            rearX: art.rear + 1, frontX: art.front - 5,
+            skirtX: art.wheels[0][0] + art.arch + 2, skirtW: (art.wheels[1][0] - art.arch - 2) - (art.wheels[0][0] + art.arch + 2),
+        },
+        livery: { x: Math.max(4, art.rear + 6), y: art.belt, w: Math.max(36, art.front - art.rear - 12), h: art.rocker - art.belt },
     };
-    const shadow = ctx.createRadialGradient((art.rear + art.front) / 2, 42, 8, (art.rear + art.front) / 2, 42, (art.front - art.rear) * .62);
-    shadow.addColorStop(0, 'rgba(0,0,0,.55)'); shadow.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = shadow; ctx.fillRect(art.rear - 15, 34, art.front - art.rear + 30, 17);
-    traceProfile(ctx, art); const paint = ctx.createLinearGradient(0, 8, 0, 39); paint.addColorStop(0, '#ffffff'); paint.addColorStop(.07, c); paint.addColorStop(.7, c); paint.addColorStop(1, '#171a1e'); ctx.fillStyle = paint; ctx.fill();
-    ctx.strokeStyle = '#11151a'; ctx.lineWidth = 1.25; traceProfile(ctx, art); ctx.stroke();
-    ctx.fillStyle = glass; drawPolygon(ctx, art.glass); ctx.strokeStyle = 'rgba(210,235,255,.36)'; ctx.lineWidth = .7; ctx.beginPath(); ctx.moveTo(art.glass[0][0], art.glass[0][1]); for (let i = 1; i < art.glass.length; i++) ctx.lineTo(art.glass[i][0], art.glass[i][1]); ctx.stroke();
-    ctx.save(); traceProfile(ctx, art); ctx.clip(); if (car.customization?.livery?.draw) car.customization.livery.draw(ctx, car); ctx.restore();
-    // Detail layer deliberately follows decals, preserving lamps, panel gaps and glass readability.
-    const rear = art.rear, front = art.front; ctx.strokeStyle = 'rgba(8,12,16,.62)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo((rear + front) * .48, 23); ctx.lineTo((rear + front) * .48, 35); ctx.moveTo((rear + front) * .63, 23); ctx.lineTo((rear + front) * .63, 34); ctx.stroke();
-    ctx.fillStyle = '#efefc6'; ctx.fillRect(front - 5, 26, 4, 3); ctx.fillStyle = '#c52a2a'; ctx.fillRect(rear + 1, 26, 4, 4); ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(front - 18, 24, 10, 1);
-    if (car.upgrades.engine > 2 && (car.art === 'mustang_sn95' || car.art === 'supra_a80')) { ctx.fillStyle = '#a7b0b8'; ctx.fillRect(front - 29, 17, 15, 4); ctx.fillStyle = '#20252b'; ctx.fillRect(front - 26, 15, 3, 3); ctx.fillRect(front - 19, 15, 3, 3); }
+
+    /* 1 ── contact shadow */
+    const shadow = ctx.createRadialGradient(midX, art.ground - 1, 6, midX, art.ground - 1, (art.front - art.rear) * .58);
+    shadow.addColorStop(0, 'rgba(0,0,0,.6)'); shadow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shadow; ctx.fillRect(art.rear - 16, art.ground - 10, art.front - art.rear + 32, 16);
+
+    /* 2 ── body: base paint over a vertical value ramp (sky bounce on the
+       roof, body colour through the flanks, shadow in the sills) */
+    const paint = ctx.createLinearGradient(0, art.topY, 0, art.rocker);
+    paint.addColorStop(0, '#ffffff'); paint.addColorStop(.06, c);
+    paint.addColorStop(.84, c); paint.addColorStop(.95, '#565e67'); paint.addColorStop(1, '#3d444c');
+    CarArt.tracePath(ctx, art.p);
+    ctx.fillStyle = paint; ctx.fill();
+
+    /* 3 ── decals, clipped to the body so they wrap over the arches */
+    ctx.save(); CarArt.tracePath(ctx, art.p); ctx.clip();
+    if (car.customization?.livery?.draw) car.customization.livery.draw(ctx, car);
+    ctx.restore();
+
+    /* 4 ── rocker shadow + shoulder highlight: the two value breaks that make
+       flat side-profile art read as curved metal */
+    ctx.save(); CarArt.tracePath(ctx, art.p); ctx.clip();
+    ctx.fillStyle = 'rgba(0,0,0,.17)';
+    ctx.fillRect(art.rear - 4, art.rocker - 3.2, art.front - art.rear + 8, 4.2);
+    ctx.fillStyle = 'rgba(255,255,255,.13)';
+    ctx.fillRect(art.rear - 4, art.belt + 1.2, art.front - art.rear + 8, 1.2);
+    ctx.fillStyle = 'rgba(255,255,255,.07)';
+    ctx.fillRect(art.rear - 4, art.belt + 5.5, art.front - art.rear + 8, 2.4);
+    // Flank character line, broken at the arches so it follows the body.
+    ctx.strokeStyle = 'rgba(10,14,19,.30)'; ctx.lineWidth = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(art.rear + 8, art.belt + 3.4);
+    ctx.lineTo(art.wheels[0][0] - art.arch - 1, art.belt + 3.1);
+    ctx.moveTo(art.wheels[0][0] + art.arch + 1, art.belt + 3.1);
+    ctx.lineTo(art.wheels[1][0] - art.arch - 1, art.belt + 3.4);
+    ctx.moveTo(art.wheels[1][0] + art.arch + 1, art.belt + 3.4);
+    ctx.lineTo(art.front - 8, art.belt + 3.7);
+    ctx.stroke();
+    ctx.restore();
+
+    /* 5 ── wheel arch cut-outs. Drawn AFTER the decals so a stripe cannot
+       paint into the well, and only as far as the rocker so no dark crescent
+       escapes below the car. Kept a dark grey rather than pure black: a
+       black hole that size swallows the whole lower body. */
+    ctx.save(); CarArt.tracePath(ctx, art.p); ctx.clip();
+    for (const [wx, wyy] of [[art.wheels[0][0], wy], [art.wheels[1][0], wyF]]) {
+        const well = ctx.createLinearGradient(0, wyy - art.arch, 0, art.rocker);
+        well.addColorStop(0, '#1b2026'); well.addColorStop(1, '#0a0d10');
+        archWellPath(ctx, wx, wyy, art.arch, art.rocker + 0.5);
+        ctx.fillStyle = well; ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 0.7; ctx.stroke();
+    }
+    ctx.restore();
+
+    /* 6 ── glass */
+    ctx.fillStyle = glass;
+    CarArt.tracePath(ctx, art.glass); ctx.fill();
+    // Windscreen sliver ahead of the A-pillar, then the pillar bars painted
+    // back over the glass — how the reference greenhouse actually reads.
+    if (art.windscreen) {
+        CarArt.tracePath(ctx, art.windscreen);
+        ctx.fillStyle = 'rgba(6,10,16,.55)'; ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(214,238,255,.17)'; ctx.lineWidth = .6;
+    CarArt.tracePath(ctx, art.glass); ctx.stroke();
+    ctx.save(); CarArt.tracePath(ctx, art.glass); ctx.clip();   // B-pillar stays
+    ctx.fillStyle = c;                                          // inside the glass
+    const pillarTop = Math.min(...art.glass.map(s => s[1]));
+    ctx.fillRect(art.pillar - 0.45, pillarTop, 1.1, art.belt - pillarTop);
+    ctx.restore();
+    // Chrome window trim along the beltline.
+    ctx.strokeStyle = 'rgba(226,236,246,.32)'; ctx.lineWidth = .55;
+    ctx.beginPath(); ctx.moveTo(art.glass[0][0] - 1, art.belt - 0.4); ctx.lineTo(art.glass[art.glass.length - 1][2] || art.glass[art.glass.length - 1][0], art.belt - 0.2); ctx.stroke();
+
+    /* 7 ── outline */
+    CarArt.tracePath(ctx, art.p);
+    ctx.strokeStyle = '#0d1116'; ctx.lineWidth = 1.1; ctx.stroke();
+
+    /* 8 ── panel detail: door seams, handle, mirror, fuel cap */
+    const seamA = art.wheels[0][0] + art.arch + 3, seamB = art.wheels[1][0] - art.arch - 3;
+    ctx.strokeStyle = 'rgba(10,14,19,.55)'; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(seamA, art.belt + 0.6); ctx.lineTo(seamA - 0.8, art.rocker - 1);
+    ctx.moveTo(seamB, art.belt + 0.6); ctx.lineTo(seamB + 0.8, art.rocker - 1);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(20,25,32,.9)';
+    ctx.fillRect(seamB - 6, art.belt + 2.4, 4, 1.4);
+    ctx.fillStyle = 'rgba(255,255,255,.22)';
+    ctx.fillRect(seamB - 6, art.belt + 2.4, 4, 0.5);
+    // Door mirror, on the A-pillar base.
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.moveTo(art.wheels[1][0] - art.arch - 1, art.belt - 1.2);
+    ctx.lineTo(art.wheels[1][0] - art.arch + 2.4, art.belt - 2.2);
+    ctx.lineTo(art.wheels[1][0] - art.arch + 2.4, art.belt - 0.2);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.beginPath(); ctx.arc(art.wheels[0][0] - 4, art.belt - 1.6, 1.1, 0, Math.PI * 2); ctx.fill();
+
+    /* 9 ── lamps, clipped to the body so a curved nose or tail can never
+       leave a lamp floating in the background */
+    ctx.save(); CarArt.tracePath(ctx, art.p); ctx.clip();
+    if (art.head) {
+        ctx.fillStyle = '#cfd0c0';
+        ctx.fillRect(art.head.x, art.head.y, art.head.w, art.head.h);
+        ctx.fillStyle = 'rgba(255,255,255,.38)';
+        ctx.fillRect(art.head.x, art.head.y, art.head.w, 0.7);
+        ctx.strokeStyle = 'rgba(20,24,30,.7)'; ctx.lineWidth = 0.5;
+        ctx.strokeRect(art.head.x, art.head.y, art.head.w, art.head.h);
+        // Inner dark edge: a lamp lens is a recess, not a sticker.
+        ctx.fillStyle = 'rgba(40,44,50,.5)';
+        ctx.fillRect(art.head.x + art.head.w - 1.3, art.head.y, 1.3, art.head.h);
+    }
+    if (art.tail) {
+        ctx.fillStyle = '#8e2018';
+        ctx.fillRect(art.tail.x, art.tail.y, art.tail.w, art.tail.h);
+        ctx.fillStyle = 'rgba(255,110,80,.30)';
+        ctx.fillRect(art.tail.x, art.tail.y, art.tail.w, 0.6);
+    }
+    // Bumper seam + lower valance at both ends.
+    ctx.strokeStyle = 'rgba(12,16,22,.30)'; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(art.front - 7.5, art.belt - 1.5); ctx.lineTo(art.front - 6, art.rocker - 2);
+    ctx.moveTo(art.rear + 6, art.belt - 1.5); ctx.lineTo(art.rear + 4.5, art.rocker - 2);
+    ctx.stroke();
+    ctx.restore();
+
+    /* 10 ── bolt-ons */
+    if (car.upgrades.engine > 2 && (car.art === 'mustang_sn95' || car.art === 'supra_a80')) {
+        ctx.fillStyle = '#a7b0b8'; ctx.fillRect(art.front - 29, art.belt - 8, 15, 4);
+        ctx.fillStyle = '#20252b'; ctx.fillRect(art.front - 26, art.belt - 10, 3, 3); ctx.fillRect(art.front - 19, art.belt - 10, 3, 3);
+    }
     if (car.customization?.bodyKit?.draw) car.customization.bodyKit.draw(ctx, car);
     if (car.customization?.spoiler?.draw) car.customization.spoiler.draw(ctx, car);
     if (car.customization?.exhaust?.draw) car.customization.exhaust.draw(ctx, car);
-    drawModernWheel(ctx, art.wheels[0][0], art.wheels[0][1], rearTire, rearTire * rimFactor, car);
-    drawModernWheel(ctx, art.wheels[1][0], art.wheels[1][1], frontTire, frontTire * rimFactor, car);
-    // Painted upper arches restore a foreground fender edge after the wheels are drawn.
-    ctx.strokeStyle = c; ctx.lineWidth = 2; for (const [wx, wy] of art.wheels) { ctx.beginPath(); ctx.arc(wx, wy, 9, Math.PI, Math.PI * 2); ctx.stroke(); }
-    if (car.upgrades.parachute && car.speed < 10 && car.type !== 'hatch') { ctx.fillStyle = '#aeb5bb'; ctx.beginPath(); ctx.arc(rear - 7, 26, 5, 0, Math.PI * 2); ctx.fill(); }
+
+    /* 11 ── wheels */
+    drawModernWheel(ctx, art.wheels[0][0], wy, rearTire, rearTire * rimFactor, car);
+    drawModernWheel(ctx, art.wheels[1][0], wyF, frontTire, frontTire * rimFactor, car);
+
+    /* 12 ── painted fender lips restore the arch edge in front of the tires.
+       Straddling the arch radius (not sitting inside it) is what makes the
+       lip read as rolled sheet metal rather than a ring painted on the tire. */
+    for (const [wx, wyy] of [[art.wheels[0][0], wy], [art.wheels[1][0], wyF]]) {
+        ctx.strokeStyle = c; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.arc(wx, wyy, art.arch - 0.8, Math.PI, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 0.55;
+        ctx.beginPath(); ctx.arc(wx, wyy, art.arch - 1.9, Math.PI * 1.08, Math.PI * 1.62); ctx.stroke();
+    }
+
+    if (car.upgrades.parachute && car.speed < 10 && car.type !== 'hatch') {
+        ctx.fillStyle = '#aeb5bb'; ctx.beginPath(); ctx.arc(art.rear - 6, art.belt, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#6d757c'; ctx.lineWidth = 0.6; ctx.stroke();
+    }
 }
 
 const Renderer = {
@@ -91,17 +256,38 @@ const Renderer = {
 
     drawRaceScene(ctx, W, H, playerCar, opponentCar, effects, screenShake, raceDistance, METERS_TO_PX, raceState, lights, _isMobile) {
         ctx.save();
-        if (screenShake > 0.1) {
-            ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
-        }
+        // Screen shake is applied by the CALLER (game.js draw()), which
+        // already translates by game.screenShake before calling us. It used
+        // to be applied here as well, so every frame shook by double the
+        // intended amplitude with two independent random offsets. Only the
+        // caller's transform is authoritative now; `screenShake` is kept in
+        // the signature (other callers / future per-layer effects) but must
+        // NOT be applied again here.
 
-        const roadY = getRoadY(H, _isMobile);
+        // Reserve measured from the real control buttons (game keeps it fresh
+        // on resize / race start) — the layout stays responsive, not fixed.
+        const controlReserve = (typeof game !== 'undefined' && game._controlReserve) || 0;
+        const roadY = getRoadY(H, _isMobile, controlReserve);
         // A restrained close-follow camera: it keeps the player near the left third
         // while enlarging the race scene without losing the start lights or HUD.
         const cameraZoom = _isMobile ? 1.24 : 1.35;
         const followOffset = Math.min(W * 0.34, 220);
         const camX = Math.max(0, playerCar.x * METERS_TO_PX - followOffset);
-        const focusX = followOffset + 40, focusY = roadY + 58;
+
+        const pX = (playerCar.x * METERS_TO_PX) - camX + 40;
+        const oX = (opponentCar.x * METERS_TO_PX) - camX + 40;
+
+        const playerLaneY = roadY + 65;
+        const oppLaneY = roadY + 20;
+
+        // The zoom anchors on the PLAYER'S CAR, not a fixed screen point.
+        // While following, camX tracks the car so pX never moves and this is
+        // identical to the old focus — but at the start line camX clamps to 0
+        // and the car sits at the screen's left edge; anchoring the zoom on a
+        // far-away focus point used to multiply that distance and push the
+        // car's rear half off-screen. Anchoring on the car keeps it fully
+        // visible in every mode, at every speed.
+        const focusX = pX + 52 * 1.1 * 0.5, focusY = roadY + 58;
         ctx.save();
         ctx.translate(focusX, focusY); ctx.scale(cameraZoom, cameraZoom); ctx.translate(-focusX, -focusY);
         game.drawBackground(ctx, W, H, camX); // Delegated to game for background state
@@ -126,12 +312,6 @@ const Renderer = {
 
         this.drawFinishLine(ctx, camX, roadY, W, raceDistance, METERS_TO_PX);
         this.drawStartLights(ctx, camX, roadY, W, lights);
-
-        const pX = (playerCar.x * METERS_TO_PX) - camX + 40;
-        const oX = (opponentCar.x * METERS_TO_PX) - camX + 40;
-
-        const playerLaneY = roadY + 65;
-        const oppLaneY = roadY + 20;
 
         if (effects) effects.draw();
 
@@ -162,22 +342,23 @@ const Renderer = {
             }
         }
 
+        const gantryTop = Math.max(roadY - 140, 2);
         ctx.fillStyle = '#3a3a3a';
-        ctx.fillRect(fx - 16, roadY - 140, 14, roadH + 140);
+        ctx.fillRect(fx - 16, gantryTop, 14, roadY - gantryTop + roadH);
         ctx.fillStyle = '#5a5a5a';
-        ctx.fillRect(fx - 14, roadY - 140, 4, roadH + 140);
+        ctx.fillRect(fx - 14, gantryTop, 4, roadY - gantryTop + roadH);
         ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(fx - 6, roadY - 140, 4, roadH + 140);
+        ctx.fillRect(fx - 6, gantryTop, 4, roadY - gantryTop + roadH);
 
         const rightPostX = fx + cols * squareSize + 2;
         ctx.fillStyle = '#3a3a3a';
-        ctx.fillRect(rightPostX, roadY - 140, 14, roadH + 140);
+        ctx.fillRect(rightPostX, gantryTop, 14, roadY - gantryTop + roadH);
         ctx.fillStyle = '#5a5a5a';
-        ctx.fillRect(rightPostX + 2, roadY - 140, 4, roadH + 140);
+        ctx.fillRect(rightPostX + 2, gantryTop, 4, roadY - gantryTop + roadH);
         ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(rightPostX + 10, roadY - 140, 4, roadH + 140);
+        ctx.fillRect(rightPostX + 10, gantryTop, 4, roadY - gantryTop + roadH);
 
-        const beamY = roadY - 140;
+        const beamY = gantryTop;
         const beamH = 24;
         const beamW = cols * squareSize + 32;
         ctx.fillStyle = '#2a2a2a';
@@ -233,7 +414,8 @@ const Renderer = {
         if (treeX < -80 || treeX > W + 80) return;
 
         const poleW = 22;
-        const poleTop = roadY - 160;
+        // On short stages the tree must stay on-screen (never clipped).
+        const poleTop = Math.max(roadY - 160, 6);
         const poleBot = roadY - 5;
         const poleH = poleBot - poleTop;
 
@@ -417,25 +599,74 @@ const Renderer = {
     drawProgressBar(ctx, W, H, p, o, raceDistance) {
         const barW = Math.min(W * 0.6, 420), barH = 8;
         const bx = (W - barW) / 2, by = 22;
+        // Paint-accented HUD: each lane takes its driver's paint (lifted to a
+        // readable tone when the paint is near-black). Ghost lane is cyan.
+        const pCol = (typeof game !== 'undefined' && game._hudColor) ? game._hudColor(p.color, '#4fc3f7') : '#4fc3f7';
+        const isGhost = !!(o && o.isGhost);
+        const oCol = isGhost ? '#4dd0e1'
+            : (typeof game !== 'undefined' && game._hudColor) ? game._hudColor(o.color, '#ff7043') : '#ff7043';
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.fillRect(bx - 2, by - 2, barW + 4, barH + 4);
         ctx.fillStyle = '#222';
         ctx.fillRect(bx, by, barW, barH);
         const pPct = Math.min(1, p.x / raceDistance);
-        ctx.fillStyle = '#4fc3f7';
+        ctx.fillStyle = pCol;
         ctx.fillRect(bx, by, barW * pPct, barH / 2);
         const oPct = Math.min(1, o.x / raceDistance);
-        ctx.fillStyle = '#ff7043';
-        ctx.fillRect(bx, by + barH / 2, barW * oPct, barH / 2);
+        ctx.fillStyle = oCol;
+        ctx.fillRect(bx + barW - barW * oPct, by + barH / 2, barW * oPct, barH / 2);
         ctx.font = '7px "Press Start 2P"';
         ctx.textAlign = 'left';
-        ctx.fillStyle = '#4fc3f7';
+        ctx.fillStyle = pCol;
         ctx.fillText('YOU', bx, by - 6);
         ctx.textAlign = 'right';
-        ctx.fillStyle = '#ff7043';
-        ctx.fillText('OPP', bx + barW, by - 6);
+        ctx.fillStyle = oCol;
+        ctx.fillText(isGhost ? 'GHOST' : 'OPP', bx + barW, by - 6);
         ctx.fillStyle = '#fff';
         ctx.fillRect(bx + barW - 2, by - 4, 4, barH + 8);
+    },
+
+    // Nitrous purge flame — a flickering violet→cyan→white burn riding the
+    // exhaust tip while the bottle sprays. Pure canvas, additive-blended;
+    // length breathes with speed and a two-sine flicker so it never reads
+    // as a static sticker. Matches the NOS button's violet identity.
+    drawNosFlame(ctx, car) {
+        const now = performance.now();
+        const art = (typeof artFor === 'function') ? artFor(car) : null;
+        const ex = (car._artAnchors && car._artAnchors.exhaust) ||
+                   (art ? { x: art.rear, y: 29 } : { x: 2, y: 29 });
+        const flick = 0.72 + 0.28 * Math.sin(now / 27 + ex.x);
+        const flick2 = 0.6 + 0.4 * Math.sin(now / 61 + 1.7);
+        const jitter = (Math.sin(now / 43 + ex.y * 3) + Math.sin(now / 17)) * 0.8;
+        const speedKick = 0.75 + 0.45 * Math.min(1, (car.speed || 0) / 30);
+        const len = (24 + 15 * flick * flick2) * speedKick;
+        const h = 3.2 + 1.9 * flick;
+
+        ctx.save();
+        ctx.translate(ex.x - 1, ex.y + jitter * 0.4);
+        ctx.globalCompositeOperation = 'lighter';
+        const tongue = (color, scale, alpha, tip) => {
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(1, 0);
+            ctx.quadraticCurveTo(-len * 0.35, -h * scale, -len, jitter * scale * 0.5 + tip);
+            ctx.quadraticCurveTo(-len * 0.33, h * scale, 1, 0);
+            ctx.fill();
+        };
+        tongue('#7e57c2', 1, 0.55, 0);          // violet sheath (NOS identity)
+        tongue('#4dd0e1', 0.64, 0.62, 0);       // cyan mid-burn
+        tongue('#e8f7ff', 0.32, 0.85, -0.6);    // white-hot core
+        ctx.globalAlpha = 0.5 * flick;          // hot tip glint
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-2, -1, 3, 2);
+        // Soft bloom where the flame leaves the pipe.
+        ctx.globalAlpha = 0.28 * flick;
+        ctx.fillStyle = '#b388ff';
+        ctx.beginPath();
+        ctx.ellipse(-len * 0.12, 0, len * 0.22, h * 1.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
     },
 
     drawCar(ctx, car, x, y, scale = 1) {
@@ -443,259 +674,38 @@ const Renderer = {
         ctx.translate(x, y + car.squat);
         ctx.scale(scale, scale);
 
-        const shadowGrad = ctx.createRadialGradient(48, 42, 10, 48, 42, 60);
+        // Contact shadow sits on the shared ground line (y=47 in car space),
+        // not on the old hard-coded 42 — the cars are planted lower now.
+        const shadowGrad = ctx.createRadialGradient(48, 46, 10, 48, 46, 60);
         shadowGrad.addColorStop(0, 'rgba(0,0,0,0.5)');
         shadowGrad.addColorStop(0.6, 'rgba(0,0,0,0.2)');
         shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = shadowGrad;
         ctx.beginPath();
-        ctx.ellipse(48, 42, 58, 8, 0, 0, Math.PI * 2);
+        ctx.ellipse(48, 46, 58, 7, 0, 0, Math.PI * 2);
         ctx.fill();
 
         const c = car.color;
         const s = car.secondaryColor;
         const glass = car.customization?.tint?.color || '#1a2332';
-        const dark = '#0a0a0a';
-        const rim = car.upgrades.slicks ? '#e8c400' : '#7a7a7a';
+        // (`dark` and `rim` used to be declared here for the legacy
+        // silhouette drawing that sat after an unconditional `return`.
+        // That block is gone; these were its only consumers.)
 
-        renderModernCar(ctx, car, c, s, glass);
+        if (car.isGhost) {
+            // A spectral replay — dimmed directly ON the car (no aura box,
+            // no outline) so it reads as "not really there" next to the
+            // solid player car without shouting for attention.
+            ctx.globalAlpha = 0.34;
+            renderModernCar(ctx, car, c, s, glass);
+        } else {
+            renderModernCar(ctx, car, c, s, glass);
+        }
+        // Nitrous purge flame rides the exhaust while the bottle ACTUALLY
+        // sprays (drawn here, not in the shared particle system, so gear
+        // backfires stay orange and the spray reads as its own thing).
+        if (car.nosSpraying) this.drawNosFlame(ctx, car);
         ctx.restore();
         return;
-
-        if (car.type === 'hatch') {
-            ctx.fillStyle = c;
-            ctx.fillRect(2, 22, 96, 16);
-            ctx.beginPath();
-            ctx.moveTo(14, 22); ctx.lineTo(22, 8); ctx.lineTo(78, 8); ctx.lineTo(86, 22);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = glass;
-            ctx.beginPath();
-            ctx.moveTo(20, 21); ctx.lineTo(25, 10); ctx.lineTo(75, 10); ctx.lineTo(81, 21);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = c;
-            ctx.fillRect(48, 10, 4, 11);
-            ctx.fillStyle = s;
-            ctx.fillRect(4, 12, 5, 10);
-            ctx.fillRect(-2, 10, 14, 3);
-            ctx.strokeStyle = s;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(44, 22); ctx.lineTo(44, 37);
-            ctx.moveTo(62, 22); ctx.lineTo(62, 35);
-            ctx.stroke();
-            ctx.fillStyle = 'rgba(0,0,0,0.35)';
-            ctx.fillRect(2, 36, 96, 3);
-            ctx.fillStyle = '#fff7b0';
-            ctx.fillRect(94, 24, 4, 4);
-            ctx.fillStyle = '#ffb000';
-            ctx.fillRect(94, 30, 3, 3);
-            ctx.fillStyle = '#c62828';
-            ctx.fillRect(2, 24, 4, 5);
-        }
-        else if (car.type === 'sedan') {
-            ctx.fillStyle = c;
-            ctx.fillRect(0, 22, 100, 16);
-            ctx.beginPath();
-            ctx.moveTo(16, 22); ctx.lineTo(30, 8); ctx.lineTo(72, 8); ctx.lineTo(88, 22);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = glass;
-            ctx.beginPath();
-            ctx.moveTo(22, 21); ctx.lineTo(32, 10); ctx.lineTo(70, 10); ctx.lineTo(82, 21);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = c;
-            ctx.fillRect(48, 10, 4, 11);
-            ctx.strokeStyle = s;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(44, 22); ctx.lineTo(44, 37);
-            ctx.moveTo(60, 22); ctx.lineTo(60, 37);
-            ctx.stroke();
-            ctx.fillStyle = 'rgba(0,0,0,0.35)';
-            ctx.fillRect(0, 36, 100, 3);
-            ctx.fillStyle = '#fff7b0';
-            ctx.fillRect(96, 26, 4, 4);
-            ctx.fillStyle = '#c62828';
-            ctx.fillRect(0, 26, 4, 5);
-            if (car.upgrades.aero) {
-                ctx.fillStyle = dark;
-                ctx.fillRect(2, 16, 5, 10);
-                ctx.fillRect(-4, 14, 16, 3);
-            }
-        }
-        else if (car.type === 'muscle') {
-            ctx.fillStyle = c;
-            ctx.fillRect(2, 22, 102, 16);
-            ctx.beginPath();
-            ctx.moveTo(26, 22); ctx.lineTo(38, 8); ctx.lineTo(76, 8); ctx.lineTo(84, 22);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = glass;
-            ctx.beginPath();
-            ctx.moveTo(32, 21); ctx.lineTo(40, 10); ctx.lineTo(74, 10); ctx.lineTo(80, 21);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = c;
-            ctx.fillRect(54, 10, 4, 11);
-            ctx.fillStyle = s;
-            ctx.fillRect(2, 28, 102, 4);
-            ctx.strokeStyle = s;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(50, 22); ctx.lineTo(50, 36);
-            ctx.stroke();
-            ctx.fillStyle = 'rgba(0,0,0,0.35)';
-            ctx.fillRect(2, 36, 102, 3);
-            ctx.fillStyle = '#fff7b0';
-            ctx.fillRect(100, 24, 4, 4);
-            ctx.fillStyle = '#c62828';
-            ctx.fillRect(2, 24, 4, 6);
-            if (car.upgrades.engine > 2) {
-                ctx.fillStyle = '#b0b0b0';
-                ctx.fillRect(74, 15, 18, 7);
-                ctx.fillStyle = '#909090';
-                ctx.fillRect(77, 11, 4, 5);
-                ctx.fillRect(85, 11, 4, 5);
-                ctx.fillStyle = '#222';
-                ctx.fillRect(78, 18, 10, 3);
-            }
-        }
-        else if (car.type === 'super') {
-            ctx.fillStyle = c;
-            ctx.beginPath();
-            ctx.moveTo(0, 38); ctx.lineTo(0, 22); ctx.lineTo(22, 14);
-            ctx.lineTo(50, 10); ctx.lineTo(74, 12); ctx.lineTo(98, 22);
-            ctx.lineTo(100, 26); ctx.lineTo(100, 38);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = glass;
-            ctx.beginPath();
-            ctx.moveTo(30, 15); ctx.lineTo(52, 12); ctx.lineTo(68, 22); ctx.lineTo(26, 22);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = c;
-            ctx.fillRect(48, 14, 3, 9);
-            ctx.fillStyle = dark;
-            ctx.fillRect(24, 24, 10, 3);
-            ctx.fillRect(26, 29, 10, 3);
-            ctx.fillStyle = 'rgba(0,0,0,0.35)';
-            ctx.fillRect(0, 37, 100, 2);
-            ctx.fillStyle = '#fff7b0';
-            ctx.beginPath();
-            ctx.moveTo(94, 22); ctx.lineTo(99, 24); ctx.lineTo(99, 28); ctx.lineTo(92, 26);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#c62828';
-            ctx.fillRect(0, 24, 5, 4);
-            ctx.fillStyle = s;
-            ctx.fillRect(0, 12, 4, 12);
-            ctx.fillRect(-6, 10, 16, 3);
-        }
-        else if (car.type === 'dragster') {
-            ctx.fillStyle = c;
-            ctx.fillRect(-10, 24, 130, 14);
-            ctx.beginPath();
-            ctx.moveTo(105, 24); ctx.lineTo(122, 28); ctx.lineTo(122, 38); ctx.lineTo(105, 38);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = s;
-            ctx.beginPath();
-            ctx.moveTo(20, 24); ctx.lineTo(24, 12); ctx.lineTo(42, 12); ctx.lineTo(48, 24);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = glass;
-            ctx.fillRect(27, 14, 12, 8);
-            ctx.fillStyle = '#4a4a4a';
-            ctx.fillRect(50, 22, 40, 4);
-            ctx.fillStyle = '#666';
-            for (let i = 0; i < 4; i++) {
-                ctx.fillRect(54 + i * 8, 18, 3, 6);
-            }
-            ctx.fillStyle = 'rgba(0,0,0,0.35)';
-            ctx.fillRect(-10, 36, 130, 2);
-            ctx.fillStyle = '#ddd';
-            ctx.beginPath();
-            ctx.moveTo(-10, 24); ctx.lineTo(-24, 2); ctx.lineTo(-6, 2); ctx.lineTo(0, 24);
-            ctx.closePath(); ctx.fill();
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(-18, 12); ctx.lineTo(-2, 12);
-            ctx.moveTo(-14, 6); ctx.lineTo(-2, 6);
-            ctx.stroke();
-            ctx.fillStyle = '#c62828';
-            ctx.fillRect(-10, 26, 4, 5);
-        }
-
-        if (car.customization && car.customization.livery && car.customization.livery.draw) {
-            ctx.save(); car.customization.livery.draw(ctx, car); ctx.restore();
-        }
-        if (car.customization && car.customization.bodyKit && car.customization.bodyKit.draw) {
-            ctx.save(); car.customization.bodyKit.draw(ctx, car); ctx.restore();
-        }
-        if (car.customization && car.customization.spoiler && car.customization.spoiler.draw) {
-            ctx.save(); car.customization.spoiler.draw(ctx, car); ctx.restore();
-        }
-        if (car.customization && car.customization.exhaust && car.customization.exhaust.draw) {
-            ctx.save(); car.customization.exhaust.draw(ctx, car); ctx.restore();
-        }
-
-        let rTire = car.upgrades.slicks ? 13 : 11;
-        let fTire = car.type === 'dragster' ? 6 : (car.upgrades.slicks ? 12 : 10);
-        let rimStyle = null;
-        if (car.customization && car.customization.tire) {
-            rTire = car.customization.tire.radius;
-            fTire = car.type === 'dragster' ? 6 : car.customization.tire.radius;
-        }
-        if (car.customization && car.customization.rim) {
-            rimStyle = car.customization.rim;
-        }
-
-        const wheelY_R = 36;
-        const wheelY_F = 38;
-        const wheelX_R = car.type === 'dragster' ? 10 : 22;
-        const wheelX_F = car.type === 'dragster' ? 100 : 82;
-
-        const drawWheel = (wx, wy, tr, rimRadius) => {
-            ctx.fillStyle = '#0a0a0a';
-            ctx.beginPath(); ctx.arc(wx, wy, tr, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = '#1a1a1a';
-            ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.arc(wx, wy, tr - 0.5, 0, Math.PI * 2); ctx.stroke();
-
-            ctx.save();
-            ctx.translate(wx, wy);
-            ctx.rotate(car.wheelRotation);
-
-            if (rimStyle && rimStyle.draw) {
-                rimStyle.draw(ctx, rimRadius);
-            } else {
-                ctx.fillStyle = rim;
-                ctx.beginPath(); ctx.arc(0, 0, rimRadius, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#2a2a2a';
-                ctx.beginPath(); ctx.arc(0, 0, rimRadius * 0.55, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#888';
-                ctx.beginPath(); ctx.arc(0, 0, rimRadius * 0.25, 0, Math.PI * 2); ctx.fill();
-                ctx.strokeStyle = '#1a1a1a';
-                ctx.lineWidth = 1.5;
-                for (let i = 0; i < 5; i++) {
-                    const a = (i / 5) * Math.PI * 2;
-                    ctx.beginPath();
-                    ctx.moveTo(Math.cos(a) * rimRadius * 0.3, Math.sin(a) * rimRadius * 0.3);
-                    ctx.lineTo(Math.cos(a) * rimRadius * 0.9, Math.sin(a) * rimRadius * 0.9);
-                    ctx.stroke();
-                }
-            }
-            ctx.restore();
-        };
-
-        drawWheel(wheelX_R, wheelY_R, rTire, rTire * 0.55);
-        drawWheel(wheelX_F, wheelY_F, fTire, fTire * 0.55);
-
-        if (car.upgrades.parachute && car.speed < 10 && car.type !== 'hatch') {
-            ctx.fillStyle = '#b0b0b0';
-            ctx.beginPath();
-            ctx.arc(-8, 26, 6, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(-8, 26); ctx.lineTo(-2, 28);
-            ctx.stroke();
-        }
-
-        ctx.restore();
     }
 };
