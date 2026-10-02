@@ -29,6 +29,31 @@ Pixel Car Racer is a 2D drag racing game with different cars, upgrades and tourn
 * Use the on-screen controls.
 * The game runs in landscape mode on mobile.
 
+## 🆕 v2.3 Update
+
+### New
+
+* Added P2P multiplayer.
+
+* Added ghost car racing.
+
+* Added player profiles and friends.
+
+* Added new tunes and performance upgrades.
+
+### Improved
+
+* Improved car art with more detail.
+
+* Improved the UI.
+
+* Improved car physics and logic.
+
+### Fixed
+
+* Fixed mobile UI and improved responsiveness on phones.
+
+
 ## 🆕 v2.2 Update
 
 ### New
